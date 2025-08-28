@@ -1,118 +1,243 @@
-#app{
+#app {
     text-align: center;
 }
+
+.logo-container {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+}
+
 .qr-upload-layout {
-  display: flex;
-  flex-direction: column;
-  height: 100vh; /* full screen */
-  font-family: sans-serif;
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    background: black;
 }
 
-.camera-section {
-  flex: 6; /* 50% height */
-  background: #000;
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.camera-preview {
+    aspect-ratio: 3/4;
+    height: 100%;
+    object-fit: none;
 }
 
-/* Main shutter button */
 .shutter-btn {
-  position: absolute;
-  bottom: 2%;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 90px;
-  height: 90px;
-  border-radius: 50%;
-  border: 6px solid white;  /* white ring */
-  background: black;        /* inner circle black */
-  outline: none;
-  cursor: pointer;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    background: white;
+    border: 4px solid #ccc;
+    cursor: pointer;
+    outline: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    transition: transform 0.1s ease-in-out, box-shadow 0.2s ease-in-out;
 }
 
-/* Uploaded images section */
-.uploads-section {
-  flex: 2; /* 20% height */
-  overflow-y: auto;
-  padding: 0.75rem;
-  background: #f9fafb;
+.shutter-btn::after {
+    content: "";
+    width: 50px;
+    height: 50px;
+    background: white;
+    border-radius: 50%;
+    border: 2px solid #eee;
+    transition: background 0.2s ease-in-out;
+}
+
+.shutter-btn:active {
+    transform: translateX(-50%) scale(0.95);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.shutter-btn:active::after {
+    background: #f5f5f5;
+}
+
+.preview-overlay {
+    position: absolute;
+    bottom: 100px;
+    left: 0;
+    width: 100%;
+    padding: 0.5rem;
+    background-color: rgb(0, 0, 0, 0.5);
 }
 
 .preview-container {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.placeholder {
-  border: 2px dashed #ccc;
-  border-radius: 0.5rem;
-  padding: 1rem;
-  text-align: center;
-  color: #888;
-  flex: 1;
+    display: flex;
+    gap: 0.5rem;
+    overflow-x: auto;
+    padding: 0.5rem;
 }
 
 .preview-item {
-  position: relative;
-  width: 100px;
-  height: 100px;
+    position: relative;
+    flex: 0 0 auto;
+    cursor: grab;
+    transition: transform 0.2s ease;
+}
+
+.preview-item.dragging {
+    opacity: 0.5;
+    transform: scale(0.9);
+}
+
+.preview-item.drag-over {
+    border: 2px dashed #4caf50;
+    border-radius: 0.5rem;
 }
 
 .preview-item img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: 8px;
-  border: 1px solid #ccc;
+    width: 80px;
+    height: 80px;  
+    object-fit: cover;
+    border-radius: 0.5rem;
 }
 
 .remove-btn {
-  position: absolute;
-  top: 0.5rem;
-  right: 0.5rem;
-  background: rgba(255, 0, 0, 0.8);
-  color: white;
-  border: none;
-  border-radius: 50%;
-  width: 24px;
-  height: 24px;
-  font-size: 16px;
-  font-weight: bold;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.3s ease;
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    background: red;
+    border: none;
+    color: white;
+    font-size: 0.9rem;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
 }
 
 .upload-btn {
-  margin-top: 0.5rem;
-  padding: 0.5rem 1rem;
-  background: #2563eb;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  font-size: 14px;
-  cursor: pointer;
-  transition: background 0.3s ease;
-}
-.upload-btn:hover {
-  background: #1d4ed8;
+    padding: 0.5rem 1rem;
+    background: #4caf50;
+    color: white;
+    border: none;
+    border-radius: 1rem;
+    cursor: pointer;
+    font-size: 0.9rem;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
 }
 
-.status-badge {
-  position: absolute;
-  bottom: 4px;
-  left: 4px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 12px;
-  color: white;
+.no-img-placeholder {
+    color: white;
+    text-align: center;
+    width: 100%;
 }
-.status-badge.uploading { background: orange; }
-.status-badge.uploaded { background: green; }
-.status-badge.error { background: red; }
+
+/* Item being dragged */
+.sortable-chosen {
+    opacity: 0.8;
+    transform: scale(1.05);
+    transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+/* Ghost placeholder in list */
+.sortable-ghost {
+    opacity: 0.4;
+    border: 2px dashed #999;
+    background: #f0f0f0;
+    border-radius: 8px;
+}
+
+/* While dragging */
+.sortable-drag {
+    cursor: grabbing;
+    z-index: 9999;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+}
+
+
+
+.single-preview {
+    position: relative;
+    display: inline-block;
+    width: 100%;
+    max-width: 400px; /* Adjust as needed */
+}
+
+.single-preview img.camera-preview {
+    width: 100%;
+    height: auto;
+    border-radius: 8px;
+    object-fit: cover;
+}
+
+/* Close button (top-left) */
+.single-preview .close-btn {
+    position: absolute;
+    bottom: 8px;
+    left: 8px;
+    background: rgba(255, 0, 0, 0.8);
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    font-size: 20px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+}
+
+/* Tick button (top-right) */
+.single-preview .tick-btn {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    background: rgba(0, 128, 0, 0.8);
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    font-size: 20px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+}
+
+/* Button hover effect */
+.single-preview .close-btn:hover,
+.single-preview .tick-btn:hover {
+    background: rgba(0, 0, 0, 0.7);
+}
+
+.qr-upload-toast {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: rgba(0, 0, 0, 0.8);
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: 5px;
+    z-index: 1000;
+    animation: slideIn 0.3s ease-out;
+}
+
+.qr-upload-toast-success {
+    background: rgba(13, 192, 13, 0.8);
+}
+
+.qr-upload-toast-error {
+    background: rgba(255, 0, 0, 0.8);
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+    }
+    to {
+        transform: translateX(0);
+    }
+}
