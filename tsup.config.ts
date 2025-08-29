@@ -1,17 +1,32 @@
 import { defineConfig } from 'tsup';
+import { promises as fs } from 'fs';
+import path from 'path';
+
+// Function to copy CSS file to dist
+async function copyCSS() {
+  try {
+    const srcPath = path.resolve(__dirname, 'src/styles.css');
+    const destPath = path.resolve(__dirname, 'dist/styles.css');
+    await fs.mkdir(path.dirname(destPath), { recursive: true });
+    await fs.copyFile(srcPath, destPath);
+    console.log('CSS file copied successfully');
+  } catch (error) {
+    console.error('Error copying CSS file:', error);
+  }
+}
 
 export default defineConfig({
   // Entry points
-  entry: {
-    index: 'src/index.ts',
-    // Additional entry points can be added here
-  },
+  entry: ['src/index.ts'],
   
   // Output formats
   format: ['esm', 'cjs'],
   
   // TypeScript support
-  dts: true,
+  dts: {
+    entry: 'src/index.ts',
+    resolve: true
+  },
   tsconfig: './tsconfig.json',
   
   // Source maps for debugging
@@ -26,28 +41,33 @@ export default defineConfig({
   // Tree shaking
   treeshake: true,
   
-  // Splitting
-  splitting: true,
-  
   // Target environment
   target: 'es2020',
   
   // External dependencies (won't be bundled)
   external: ['react', 'react-dom'],
   
-  // Banner
-  banner: {
-    js: '// QR Upload SDK - https://github.com/your-org/qr-upload-sdk\n'
+  // Configure esbuild to handle CSS
+  esbuildOptions(options) {
+    options.loader = {
+      ...(options.loader || {}),
+      '.css': 'css'
+    };
   },
   
-  // Environment variables
-  env: {
-    NODE_ENV: 'production',
-  },
+  // On success hook - only copy CSS
+  onSuccess: copyCSS,
   
   // Watch mode (for development)
   watch: process.env.NODE_ENV === 'development',
   
-  // On success hook
-  onSuccess: 'tsc --project tsconfig.json --emitDeclarationOnly --declaration',
+  // Environment variables
+  env: {
+    NODE_ENV: process.env.NODE_ENV || 'production',
+  },
+  
+  // Banner
+  banner: {
+    js: '// QR Upload SDK\n',
+  },
 });

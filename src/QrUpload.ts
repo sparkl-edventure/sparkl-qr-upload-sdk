@@ -30,9 +30,11 @@ export interface PollingCallbacks {
 }
 
 export interface QrUploadConfig {
-    frontendUrl: string;
-    sdkRoute?: string;
-    uploadApi: ApiConfig;
+    qrUrl?: {
+        frontendUrl: string;
+        sdkRoute?: string;
+    };
+    uploadApi?: ApiConfig;
     fetchApi?: ApiConfig;
     autoStartCamera?: boolean;
     enablePolling?: boolean;
@@ -41,7 +43,6 @@ export interface QrUploadConfig {
     polling?: PollingCallbacks;
     onError?: (error: Error) => void;
     onUploadComplete?: (response: any) => void;
-    [key: string]: any;
     logoUrl?: string | null;
 }
 
@@ -51,6 +52,7 @@ export interface QRCodeGenerationOptions {
     backgroundColor?: string;
     errorCorrectionLevel?: 'L' | 'M' | 'Q' | 'H';
     margin?: number;
+    params?: Record<string, string>;
 }
 
 export interface IQRUploadSDK {
@@ -78,16 +80,17 @@ export class QrUpload implements IQRUploadSDK {
     private videoElement: HTMLVideoElement | null = null;
     private mediaStream: MediaStream | null = null;
     private pollingInterval: NodeJS.Timeout | null = null;
-    private lastCheckTime: number = Date.now();
     private isPolling: boolean = false;
 
     private defaultConfig: QrUploadConfig = {
-        frontendUrl: '',
-        sdkRoute: '/qr-upload',
+        qrUrl: {
+            frontendUrl: '',
+            sdkRoute: '/qr-upload',
+        },
         uploadApi: {
             url: '',
             method: 'POST',
-            headers: {}
+            headers: {},
         },
         fetchApi: {
             url: '',
@@ -117,12 +120,38 @@ export class QrUpload implements IQRUploadSDK {
         this.isInitialized = true;
     }
 
-    mount(container: HTMLElement): void {
+    mount(container?: HTMLElement): void {
         this.ensureInitialized();
-        this.startCamera();
-        this.container = container;
-        this.renderInterface();
+
+        if (container) {
+            // Use the passed container
+            this.container = container;
+        } else {
+            const appRoot = document.querySelector("body #root");
+            this.container = document.createElement("div");
+            this.container.className = "qr-upload-root";
+
+            if (appRoot) {
+                appRoot.appendChild(this.container);
+            } else {
+                // Fallback to body if no #root
+                document.body.appendChild(this.container);
+            }
+        }
+
+
+        const currentPath = window.location.pathname;
+        const sdkRoute = this.config.qrUrl?.sdkRoute ?? "/qr-upload";
+        if (currentPath === sdkRoute || currentPath.endsWith(sdkRoute)) {
+
+            this.startCamera();
+            this.renderInterface();
+        }
+
     }
+
+
+
 
     unmount(): void {
         this.stopCamera();
@@ -132,6 +161,32 @@ export class QrUpload implements IQRUploadSDK {
             this.container = null;
         }
     }
+
+    updateUploadApi(config: Partial<ApiConfig>) {
+        this.ensureInitialized();
+        if (!this.config.uploadApi) {
+            throw new Error('Upload API not configured');
+        }
+        this.config.uploadApi = {
+            ...this.config.uploadApi,
+            ...config,
+            url: config.url ?? this.config!.uploadApi!.url,
+        };
+    }
+
+    updateFetchApi(config: Partial<ApiConfig>) {
+        this.ensureInitialized();
+
+        if (!this.config.fetchApi) {
+            throw new Error('Fetch API not configured');
+        }
+        this.config.fetchApi = {
+            ...this.config.fetchApi,
+            ...config,
+            url: config.url ?? this.config!.fetchApi!.url,
+        };
+    }
+
 
     async startCamera(): Promise<void> {
         this.ensureInitialized();
@@ -200,7 +255,7 @@ export class QrUpload implements IQRUploadSDK {
             method = "POST",
             headers = {},
             body = {},
-            fileKey = "files", // 👈 default is "files"
+            fileKey = "files",
         } = this.config.uploadApi;
 
         const formData = new FormData();
@@ -248,9 +303,10 @@ export class QrUpload implements IQRUploadSDK {
     async generateQrCode(options?: QRCodeGenerationOptions): Promise<string> {
         this.ensureInitialized();
         const qrUrl = generateQrUrl(
-            this.config.frontendUrl,
+            this.config!.qrUrl!.frontendUrl,
             this.sessionId,
-            this.config.sdkRoute
+            this.config!.qrUrl!.sdkRoute,
+            options?.params
         );
 
         return generateQrCode(qrUrl, options);
@@ -347,9 +403,6 @@ export class QrUpload implements IQRUploadSDK {
             if (items && Array.isArray(items) && items.length > 0) {
                 // 🔑 directly fire callback with the raw array
                 this.config.polling?.onNewImages?.(items);
-
-                // track timestamp if you want
-                this.lastCheckTime = Date.now();
             }
         } catch (error) {
             const err = error instanceof Error ? error : new Error(String(error));
@@ -369,35 +422,6 @@ export class QrUpload implements IQRUploadSDK {
         if (!this.isInitialized) {
             throw new Error('QrUpload not initialized. Call init() first.');
         }
-
-        // Validate required configurations
-        if (!this.config.frontendUrl) {
-            throw new Error('frontendUrl is required in QrUpload configuration');
-        }
-
-        if (!this.config.uploadApi?.url) {
-            throw new Error('uploadApi.url is required in QrUpload configuration');
-        }
-
-        // Validate polling configuration if enabled
-        if (this.config.enablePolling && !this.config.fetchApi?.url) {
-            console.warn('Polling is enabled but fetchApi.url is not configured. Polling will not work.');
-        }
-
-        // Ensure required headers for upload API
-        if (!this.config.uploadApi.headers) {
-            this.config.uploadApi.headers = {};
-        }
-
-        // Set default content type if not specified
-        if (!this.config.uploadApi.headers['Content-Type']) {
-            this.config.uploadApi.headers['Content-Type'] = 'multipart/form-data';
-        }
-
-        // Ensure session ID is set
-        if (!this.sessionId) {
-            this.sessionId = generateSessionId();
-        }
     }
 
     private handleError(error: Error): void {
@@ -407,7 +431,12 @@ export class QrUpload implements IQRUploadSDK {
 
 
     private renderInterface(): void {
-        if (!this.container) return;
+        this.ensureInitialized();
+
+        // ✅ instead of creating a new container, reuse the one from mount()
+        if (!this.container) {
+            throw new Error("Container not initialized. Call mount() first.");
+        }
 
         // Clear container
         this.container.innerHTML = "";
@@ -416,7 +445,7 @@ export class QrUpload implements IQRUploadSDK {
         const wrapper = document.createElement("div");
         wrapper.className = "qr-upload-layout";
 
-        // 🔹 Logo container (empty by default)
+        // 🔹 Logo container
         const logoContainer = document.createElement("div");
         logoContainer.className = "logo-container";
 
@@ -439,25 +468,25 @@ export class QrUpload implements IQRUploadSDK {
         const shutterWrapper = document.createElement("div");
         shutterWrapper.className = "shutter-wrapper";
         shutterWrapper.innerHTML = `
-            <button class="shutter-btn">
-                <span class="inner-circle"></span>
-            </button>
-        `;
+        <button class="shutter-btn">
+            <span class="inner-circle"></span>
+        </button>
+    `;
 
         // Preview section
         const previewOverlay = document.createElement("div");
         previewOverlay.className = "preview-overlay";
         previewOverlay.innerHTML = `
-            <div class="preview-container">
-                <div class="no-img-placeholder">
-                    <p>Click capture to add images</p>
-                </div>
+        <div class="preview-container">
+            <div class="no-img-placeholder">
+                <p>Click capture to add images</p>
             </div>
-            <button class="upload-btn" style="display:none;">Upload All</button>
-        `;
+        </div>
+        <button class="upload-btn" style="display:none;">Upload All</button>
+    `;
 
         // Append all
-        wrapper.appendChild(logoContainer); // 🔹 logo at top
+        wrapper.appendChild(logoContainer);
         wrapper.appendChild(videoElement);
         wrapper.appendChild(shutterWrapper);
         wrapper.appendChild(previewOverlay);
@@ -468,14 +497,14 @@ export class QrUpload implements IQRUploadSDK {
         const captureBtn = shutterWrapper.querySelector(".shutter-btn");
         captureBtn?.addEventListener("click", async () => {
             const maxImages = this.config.imageConfig?.maxImages ?? 1;
-                if (this.images.length >= maxImages) {
-                    const toast = document.createElement("div");
-                    toast.className = "qr-upload-toast qr-upload-toast-error";
-                    toast.textContent = `Maximum ${maxImages} image${maxImages > 1 ? "s" : ""} allowed`;
-                    document.body.appendChild(toast);
-                    setTimeout(() => toast.remove(), 3000);
-                    return;
-        }
+            if (this.images.length >= maxImages) {
+                const toast = document.createElement("div");
+                toast.className = "qr-upload-toast qr-upload-toast-error";
+                toast.textContent = `Maximum ${maxImages} image${maxImages > 1 ? "s" : ""} allowed`;
+                document.body.appendChild(toast);
+                setTimeout(() => toast.remove(), 3000);
+                return;
+            }
             try {
                 const blob = await this.captureImage();
                 const file = new File([blob], `capture-${Date.now()}.jpg`, {
@@ -496,7 +525,7 @@ export class QrUpload implements IQRUploadSDK {
             }
         });
 
-        // Upload button handler
+        // 🔹 Upload button handler
         const uploadBtn = previewOverlay.querySelector(".upload-btn") as HTMLButtonElement;
         uploadBtn?.addEventListener("click", async () => {
             for (const img of this.images) {
@@ -507,6 +536,7 @@ export class QrUpload implements IQRUploadSDK {
             this.renderPreviews();
         });
     }
+
 
 
 
@@ -524,12 +554,12 @@ export class QrUpload implements IQRUploadSDK {
                 }
             }
         }
-    
+
         // Remove uploaded images
         this.images = this.images.filter(img => img.status !== "uploaded");
-    
+
         this.renderPreviews();
-    
+
         // Show toast
         const toast = document.createElement("div");
         toast.className = "qr-upload-toast qr-upload-toast-success";
@@ -537,11 +567,11 @@ export class QrUpload implements IQRUploadSDK {
         document.body.appendChild(toast);
         setTimeout(() => toast.remove(), 3000);
     }
-    
+
     private renderPreviews(): void {
         this.ensureInitialized();
         if (!this.container) return;
-    
+
         const previewContainer = this.container.querySelector(
             ".preview-container"
         ) as HTMLElement | null;
@@ -552,13 +582,13 @@ export class QrUpload implements IQRUploadSDK {
             ".upload-btn"
         ) as HTMLButtonElement | null;
         const captureBtn = this.container.querySelector(".shutter-btn") as HTMLElement | null;
-    
+
         if (!previewContainer || !previewOverlay) return;
-    
+
         previewContainer.innerHTML = "";
-    
+
         const isMulti = this.config.imageConfig?.multiPhoto ?? true;
-    
+
         if (this.images.length === 0) {
             // No images placeholder
             previewContainer.innerHTML = `
@@ -567,35 +597,35 @@ export class QrUpload implements IQRUploadSDK {
                 </div>
             `;
             if (uploadBtn) uploadBtn.style.display = "none";
-    
+
             // Show camera & capture button
             if (this.videoElement) this.videoElement.style.display = "block";
             if (captureBtn) captureBtn.style.display = "block";
-    
+
             // Reset overlay
             previewOverlay.style.position = "absolute";
             previewOverlay.style.left = "";
             previewOverlay.style.top = "";
             previewOverlay.style.bottom = "100px";
             previewOverlay.style.transform = "";
-    
+
             return;
         }
-    
+
         if (!isMulti) {
             const img = this.images[0];
-    
+
             // Hide camera and capture button
             if (this.videoElement) this.videoElement.style.display = "none";
             if (captureBtn) captureBtn.style.display = "none";
-    
+
             // Center the overlay
             previewOverlay.style.position = "absolute";
             previewOverlay.style.left = "50%";
             previewOverlay.style.top = "50%";
             previewOverlay.style.bottom = "auto";
             previewOverlay.style.transform = "translate(-50%, -50%)";
-    
+
             const singlePreview = document.createElement("div");
             singlePreview.className = "single-preview";
             singlePreview.innerHTML = `
@@ -605,33 +635,33 @@ export class QrUpload implements IQRUploadSDK {
                     <button class="tick-btn">&#10003;</button>
                 </div>
             `;
-    
+
             // Close button
             singlePreview.querySelector(".close-btn")?.addEventListener("click", () => {
                 this.removeImage(img.id);
-    
+
                 // Show camera & capture again
                 if (this.videoElement) this.videoElement.style.display = "block";
                 if (captureBtn) captureBtn.style.display = "block";
-    
+
                 // Reset overlay
                 previewOverlay.style.position = "absolute";
                 previewOverlay.style.left = "";
                 previewOverlay.style.top = "";
                 previewOverlay.style.bottom = "100px";
                 previewOverlay.style.transform = "";
-    
+
                 this.renderPreviews();
             });
-    
+
             // Tick button
             singlePreview.querySelector(".tick-btn")?.addEventListener("click", async () => {
                 await this.submitImages();
-    
+
                 // Show camera & capture again
                 if (this.videoElement) this.videoElement.style.display = "block";
                 if (captureBtn) captureBtn.style.display = "block";
-    
+
                 // Reset overlay
                 previewOverlay.style.position = "absolute";
                 previewOverlay.style.left = "";
@@ -639,39 +669,39 @@ export class QrUpload implements IQRUploadSDK {
                 previewOverlay.style.bottom = "100px";
                 previewOverlay.style.transform = "";
             });
-    
+
             previewContainer.appendChild(singlePreview);
             if (uploadBtn) uploadBtn.style.display = "none"; // hide default upload
             return;
         }
-    
+
         // MULTI IMAGE MODE
         if (this.videoElement) this.videoElement.style.display = "block";
         if (uploadBtn) uploadBtn.style.display = this.images.length > 0 ? "inline-block" : "none";
-    
+
         // Upload All button
         uploadBtn?.addEventListener("click", async () => {
             await this.submitImages();
         });
-    
+
         this.images.forEach((img, index) => {
             const item = document.createElement("div");
             item.className = "preview-item";
             item.dataset.index = String(index);
-    
+
             item.innerHTML = `
                 <img src="${img.previewUrl}" alt="preview" />
                 <button class="remove-btn" title="Remove">&times;</button>
             `;
-    
+
             // Remove button
             item.querySelector(".remove-btn")?.addEventListener("click", () => {
                 this.removeImage(img.id);
             });
-    
+
             previewContainer.appendChild(item);
         });
-    
+
         // Enable SortableJS
         Sortable.create(previewContainer, {
             animation: 200,
@@ -697,7 +727,7 @@ export class QrUpload implements IQRUploadSDK {
             }
         });
     }
-    
+
 
 
     private removeImage(imageId: string): void {

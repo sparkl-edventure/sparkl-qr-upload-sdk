@@ -70,12 +70,19 @@ export function generateSessionId(): string {
 export function generateQrUrl(
   frontendUrl: string,
   sdkRoute = '/qr-upload',
-  sessionId?: string
+  sessionId?: string,
+  params?: Record<string, string>,
 ): string {
   const url = new URL(sdkRoute, frontendUrl);
   
   if (sessionId) {
     url.searchParams.append('sessionId', sessionId);
+  }
+
+  if (params) {
+    for (const [key, value] of Object.entries(params)) {
+      url.searchParams.append(key, value);
+    }
   }
 
   return url.toString();
