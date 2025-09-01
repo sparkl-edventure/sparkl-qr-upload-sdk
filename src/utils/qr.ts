@@ -1,12 +1,13 @@
-import QRCode from 'qrcode';
+import QRCodeStyling from 'qr-code-styling';
 import { v4 as uuidv4 } from 'uuid';
 // QR code generation options
-export interface QRCodeOptions {
+export interface QRCodeGenerationOptions {
   size?: number;
   color?: string;
   backgroundColor?: string;
   errorCorrectionLevel?: 'L' | 'M' | 'Q' | 'H';
   margin?: number;
+  qrImage?: string;
 }
 
 /**
@@ -15,42 +16,83 @@ export interface QRCodeOptions {
  * @param options - QR code generation options
  * @returns Promise that resolves with the data URL of the QR code
  */
+
+
 export async function generateQrCode(
-  data: string | object,
-  options: QRCodeOptions = {}
+  data: string,
+  options: QRCodeGenerationOptions = {}
 ): Promise<string> {
   const {
-    size = 200,
-    color = '#000000',
-    backgroundColor = '#ffffff',
-    errorCorrectionLevel = 'H',
-    margin = 1,
+    size = 300,
+    color = "#000000",
+    backgroundColor = "#ffffff",
+    margin = 0,
+    qrImage,
   } = options;
 
-  const dataString = typeof data === 'string' ? data : JSON.stringify(data);
+  return new Promise((resolve, reject) => {
+    try {
+      const qrCode = new QRCodeStyling({
+        width: size,
+        height: size,
+        data,
+        image: qrImage,
+        backgroundOptions: { color: backgroundColor },
+        dotsOptions: { color, type: "rounded" },
+        cornersSquareOptions: { type: "extra-rounded" },
+        cornersDotOptions: { type: "dot" },
+        imageOptions: {
+          crossOrigin: "anonymous",
+          margin: margin || 10,
+        },
+      });
 
-  try {
-    // Create a canvas element to render the QR code
-    const canvas = document.createElement('canvas');
-    
-    // Generate QR code to canvas with direct color strings
-    await QRCode.toCanvas(canvas, dataString, {
-      width: size,
-      color: {
-        dark: color as string,
-        light: backgroundColor as string,
-      },
-      errorCorrectionLevel,
-      margin,
-    });
-    
-    // Convert canvas to data URL
-    return canvas.toDataURL('image/png');
-  } catch (error) {
-    console.error('Failed to generate QR code:', error);
-    throw new Error('Failed to generate QR code');
-  }
+      // Export QR to blob
+      qrCode.getRawData("png").then(async (blob:any) => {
+        const baseImage = await blobToImage(blob);
+
+        // Create canvas bigger than QR (to fit text below)
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d")!;
+
+        const padding = 40; // space for text
+        canvas.width = size;
+        canvas.height = size + padding;
+
+        // Draw QR
+        ctx.fillStyle = backgroundColor;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(baseImage, 0, 0);
+
+        // Draw text
+        ctx.font = "bold 20px Arial";
+        ctx.fillStyle = color;
+        ctx.textAlign = "center";
+        ctx.fillText("Scan me", canvas.width / 2, size + 28);
+
+        // Export final image
+        resolve(canvas.toDataURL("image/png"));
+      });
+    } catch (error) {
+      reject(error);
+    }
+  });
 }
+
+// Helper: convert Blob -> HTMLImageElement
+function blobToImage(blob: Blob): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(img);
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
 
 /**
  * Generate a unique session ID

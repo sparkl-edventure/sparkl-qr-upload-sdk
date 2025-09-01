@@ -41,14 +41,13 @@
   "dependencies": {
     "@types/uuid": "^10.0.0",
     "axios": "^1.11.0",
-    "qrcode": "^1.5.4",
+    "qr-code-styling": "^1.9.2",
     "socket.io-client": "^4.8.1",
     "sortablejs": "^1.15.6",
     "uuid": "^11.1.0"
   },
   "devDependencies": {
     "@types/node": "^20.19.11",
-    "@types/qrcode": "^1.5.3",
     "@types/sortablejs": "^1.15.8",
     "@typescript-eslint/eslint-plugin": "^6.13.2",
     "@typescript-eslint/parser": "^6.13.2",
