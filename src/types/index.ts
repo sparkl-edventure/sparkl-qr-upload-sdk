@@ -10,6 +10,7 @@ export interface ImageFile {
 export interface ApiConfig {
   url: string;
   headers?: Record<string, string>;
+  onUploadImageSuccess?: (uploadedFiles: File[]) => void;
 }
 
 export interface PollingCallbacks {

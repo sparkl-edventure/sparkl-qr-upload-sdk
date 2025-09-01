@@ -20,6 +20,7 @@ export interface ApiConfig {
     body?: Record<string, string>;
     fileKey?: string;
     responseKey?: string;
+    onUploadImageSuccess?: (uploadedFiles: File[]) => void;
 }
 
 export interface PollingCallbacks {
@@ -52,6 +53,7 @@ export interface QRCodeGenerationOptions {
     backgroundColor?: string;
     errorCorrectionLevel?: 'L' | 'M' | 'Q' | 'H';
     margin?: number;
+    qrImage?: string;
     params?: Record<string, string>;
 }
 
@@ -543,29 +545,44 @@ export class QrUpload implements IQRUploadSDK {
 
 
     private async submitImages(): Promise<void> {
-        for (const img of this.images) {
-            if (img.status === "pending" || img.status === "error") {
-                try {
-                    await this.uploadImage(img.file);
-                    img.status = "uploaded";
-                } catch (err) {
-                    img.status = "error";
-                    this.handleError(err instanceof Error ? err : new Error(String(err)));
+        const uploadedFiles: File[] = [];
+        
+        try {
+            // Process all pending/error images
+            for (const img of this.images) {
+                if (img.status === "pending" || img.status === "error") {
+                    try {
+                        await this.uploadImage(img.file);
+                        img.status = "uploaded";
+                        uploadedFiles.push(img.file);
+                    } catch (err) {
+                        img.status = "error";
+                        this.handleError(err instanceof Error ? err : new Error(String(err)));
+                    }
                 }
             }
+
+            // Only proceed if we have successfully uploaded files
+            if (uploadedFiles.length > 0) {
+                // Call the success callback if provided
+                if (this.config?.uploadApi?.onUploadImageSuccess) {
+                    try {
+                        this.config?.uploadApi?.onUploadImageSuccess(uploadedFiles);
+                    } catch (error) {
+                        console.error('Error in onSuccess callback:', error);
+                    }
+                }
+
+                // Remove uploaded images from the list
+                this.images = this.images.filter(img => img.status !== "uploaded");
+                this.renderPreviews();
+
+
+            }
+        } catch (error) {
+            console.error('Error in submitImages:', error);
+            this.handleError(error instanceof Error ? error : new Error(String(error)));
         }
-
-        // Remove uploaded images
-        this.images = this.images.filter(img => img.status !== "uploaded");
-
-        this.renderPreviews();
-
-        // Show toast
-        const toast = document.createElement("div");
-        toast.className = "qr-upload-toast qr-upload-toast-success";
-        toast.textContent = "Images uploaded successfully";
-        document.body.appendChild(toast);
-        setTimeout(() => toast.remove(), 3000);
     }
 
     private renderPreviews(): void {
