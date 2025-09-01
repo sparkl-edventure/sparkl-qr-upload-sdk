@@ -304,8 +304,8 @@ export class QrUpload implements IQRUploadSDK {
         this.ensureInitialized();
         const qrUrl = generateQrUrl(
             this.config!.qrUrl!.frontendUrl,
-            this.sessionId,
             this.config!.qrUrl!.sdkRoute,
+            this.sessionId,
             options?.params
         );
 
@@ -345,7 +345,7 @@ export class QrUpload implements IQRUploadSDK {
 
     isPollingActive(): boolean {
         this.ensureInitialized();
-        return this.isPolling;
+        return this.config.enablePolling === true;
     }
 
     setPollingEnabled(enabled: boolean): void {
@@ -420,7 +420,7 @@ export class QrUpload implements IQRUploadSDK {
     private ensureInitialized(): void {
         // Check if SDK is initialized
         if (!this.isInitialized) {
-            throw new Error('QrUpload not initialized. Call init() first.');
+            console.error('QrUpload not initialized. Call init() first.');
         }
     }
 

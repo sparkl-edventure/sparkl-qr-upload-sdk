@@ -69,21 +69,34 @@ export function generateSessionId(): string {
  */
 export function generateQrUrl(
   frontendUrl: string,
-  sdkRoute = '/qr-upload',
+  sdkRoute?: string,
   sessionId?: string,
   params?: Record<string, string>,
 ): string {
-  const url = new URL(sdkRoute, frontendUrl);
-  
+  const url = new URL(frontendUrl);
+
+  // Only append sdkRoute if provided
+  if (sdkRoute && sdkRoute.trim()) {
+    url.pathname = pathJoin(url.pathname, sdkRoute);
+  }
+
   if (sessionId) {
-    url.searchParams.append('sessionId', sessionId);
+    url.searchParams.set("session_id", sessionId);
   }
 
   if (params) {
     for (const [key, value] of Object.entries(params)) {
-      url.searchParams.append(key, value);
+      url.searchParams.set(key, value);
     }
   }
 
   return url.toString();
 }
+
+// Helper: safely join paths
+function pathJoin(base: string, append: string): string {
+  if (!base.endsWith("/")) base += "/";
+  if (append.startsWith("/")) append = append.slice(1);
+  return base + append;
+}
+
