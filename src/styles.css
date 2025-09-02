@@ -46,7 +46,7 @@
 .camera-preview {
     aspect-ratio: 3/4;
     height: 100%;
-    object-fit: none;
+    object-fit: fill;
 }
 
 .shutter-btn {
@@ -123,7 +123,7 @@
 .preview-item img {
     width: 80px;
     height: 80px;
-    object-fit: cover;
+    object-fit: fill;
     border-radius: 0.5rem;
 }
 
@@ -194,7 +194,7 @@
     width: 100%;
     height: auto;
     border-radius: 8px;
-    object-fit: cover;
+    object-fit: fill;
 }
 
 /* Close button (top-left) */
