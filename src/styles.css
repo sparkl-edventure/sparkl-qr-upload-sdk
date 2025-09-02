@@ -51,7 +51,7 @@
 
 .shutter-btn {
     position: absolute;
-    bottom: 40px;
+    bottom: 55px;
     left: 50%;
     transform: translateX(-50%);
     width: 70px;
@@ -89,10 +89,10 @@
 
 .preview-overlay {
     position: absolute;
-    bottom: 120px;
+    bottom: 125px;
     left: 0;
     width: 100%;
-    padding: 0.5rem;
+    padding: 0.2rem;
     background-color: rgb(0, 0, 0, 0.5);
 }
 
