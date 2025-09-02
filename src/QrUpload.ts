@@ -79,6 +79,7 @@ export class QrUpload implements IQRUploadSDK {
     private container: HTMLElement | null = null;
     private sessionId: string = '';
     private isInitialized: boolean = false;
+    private videoWrapper: HTMLDivElement | null = null;
     private videoElement: HTMLVideoElement | null = null;
     private mediaStream: MediaStream | null = null;
     private pollingInterval: NodeJS.Timeout | null = null;
@@ -447,17 +448,25 @@ export class QrUpload implements IQRUploadSDK {
         const wrapper = document.createElement("div");
         wrapper.className = "qr-upload-layout";
 
-        // 🔹 Logo container
-        const logoContainer = document.createElement("div");
-        logoContainer.className = "logo-container";
+        const header = document.createElement("div");
+        header.className = "qr-upload__header";
 
         if (this.config?.logoUrl) {
             const logoImg = document.createElement("img");
             logoImg.src = this.config.logoUrl;
             logoImg.alt = "Logo";
-            logoImg.className = "logo-img";
-            logoContainer.appendChild(logoImg);
+            logoImg.className = "qr-upload__logo";
+            header.appendChild(logoImg);
         }
+
+        const title = document.createElement("h3");
+        title.className = "qr-upload__title";
+        title.textContent = "QR Upload";
+        header.appendChild(title);
+
+
+        const videoWrapper = document.createElement("div");
+        videoWrapper.className = "qr-upload__camera";
 
         // Main camera/video
         const videoElement = document.createElement("video");
@@ -465,6 +474,9 @@ export class QrUpload implements IQRUploadSDK {
         videoElement.autoplay = true;
         videoElement.playsInline = true;
         this.videoElement = videoElement;
+        this.videoWrapper = videoWrapper;
+        
+        videoWrapper.appendChild(videoElement);
 
         // Shutter button
         const shutterWrapper = document.createElement("div");
@@ -488,8 +500,8 @@ export class QrUpload implements IQRUploadSDK {
     `;
 
         // Append all
-        wrapper.appendChild(logoContainer);
-        wrapper.appendChild(videoElement);
+        wrapper.appendChild(header);
+        wrapper.appendChild(videoWrapper);
         wrapper.appendChild(shutterWrapper);
         wrapper.appendChild(previewOverlay);
 
@@ -500,11 +512,7 @@ export class QrUpload implements IQRUploadSDK {
         captureBtn?.addEventListener("click", async () => {
             const maxImages = this.config.imageConfig?.maxImages ?? 1;
             if (this.images.length >= maxImages) {
-                const toast = document.createElement("div");
-                toast.className = "qr-upload-toast qr-upload-toast-error";
-                toast.textContent = `Maximum ${maxImages} image${maxImages > 1 ? "s" : ""} allowed`;
-                document.body.appendChild(toast);
-                setTimeout(() => toast.remove(), 3000);
+                this.showToast(`Maximum ${maxImages} image${maxImages > 1 ? "s" : ""} allowed`, "error");
                 return;
             }
             try {
@@ -541,12 +549,20 @@ export class QrUpload implements IQRUploadSDK {
 
 
 
+    private showToast(message: string, type: "success" | "error" = "success"): void {
+        const toast = document.createElement("div");
+        toast.className = `qr-upload__toast qr-upload__toast--${type}`;
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+    }
+
 
 
 
     private async submitImages(): Promise<void> {
         const uploadedFiles: File[] = [];
-        
+
         try {
             // Process all pending/error images
             for (const img of this.images) {
@@ -616,7 +632,7 @@ export class QrUpload implements IQRUploadSDK {
             if (uploadBtn) uploadBtn.style.display = "none";
 
             // Show camera & capture button
-            if (this.videoElement) this.videoElement.style.display = "block";
+            if (this.videoWrapper) this.videoWrapper.style.display = "block";
             if (captureBtn) captureBtn.style.display = "block";
 
             // Reset overlay
@@ -633,7 +649,7 @@ export class QrUpload implements IQRUploadSDK {
             const img = this.images[0];
 
             // Hide camera and capture button
-            if (this.videoElement) this.videoElement.style.display = "none";
+            if (this.videoWrapper) this.videoWrapper.style.display = "none";
             if (captureBtn) captureBtn.style.display = "none";
 
             // Center the overlay
@@ -658,7 +674,7 @@ export class QrUpload implements IQRUploadSDK {
                 this.removeImage(img.id);
 
                 // Show camera & capture again
-                if (this.videoElement) this.videoElement.style.display = "block";
+                if (this.videoWrapper) this.videoWrapper.style.display = "block";
                 if (captureBtn) captureBtn.style.display = "block";
 
                 // Reset overlay
@@ -676,7 +692,7 @@ export class QrUpload implements IQRUploadSDK {
                 await this.submitImages();
 
                 // Show camera & capture again
-                if (this.videoElement) this.videoElement.style.display = "block";
+                if (this.videoWrapper) this.videoWrapper.style.display = "block";
                 if (captureBtn) captureBtn.style.display = "block";
 
                 // Reset overlay
@@ -693,7 +709,7 @@ export class QrUpload implements IQRUploadSDK {
         }
 
         // MULTI IMAGE MODE
-        if (this.videoElement) this.videoElement.style.display = "block";
+        if (this.videoWrapper) this.videoWrapper.style.display = "block";
         if (uploadBtn) uploadBtn.style.display = this.images.length > 0 ? "inline-block" : "none";
 
         // Upload All button
