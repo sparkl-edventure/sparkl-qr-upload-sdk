@@ -639,7 +639,7 @@ export class QrUpload implements IQRUploadSDK {
             previewOverlay.style.position = "absolute";
             previewOverlay.style.left = "";
             previewOverlay.style.top = "";
-            previewOverlay.style.bottom = "125px";
+            previewOverlay.style.bottom = "135px";
             previewOverlay.style.transform = "";
 
             return;
@@ -681,7 +681,7 @@ export class QrUpload implements IQRUploadSDK {
                 previewOverlay.style.position = "absolute";
                 previewOverlay.style.left = "";
                 previewOverlay.style.top = "";
-                previewOverlay.style.bottom = "125px";
+                previewOverlay.style.bottom = "135px";
                 previewOverlay.style.transform = "";
 
                 this.renderPreviews();
@@ -699,7 +699,7 @@ export class QrUpload implements IQRUploadSDK {
                 previewOverlay.style.position = "absolute";
                 previewOverlay.style.left = "";
                 previewOverlay.style.top = "";
-                previewOverlay.style.bottom = "125px";
+                previewOverlay.style.bottom = "135px";
                 previewOverlay.style.transform = "";
             });
 
