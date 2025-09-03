@@ -55,15 +55,14 @@ export async function generateQrCode(
         const canvas = document.createElement("canvas");
         const ctx = canvas.getContext("2d")!;
 
-        const padding = 40; // space for text
         canvas.width = size;
-        canvas.height = size + padding;
+        canvas.height = size;
 
         // Draw QR
         ctx.fillStyle = backgroundColor;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(baseImage, 0, 0);
-        
+        ctx.drawImage(baseImage, 0, 0, size, size);
+
         // Export final image
         resolve(canvas.toDataURL("image/png"));
       });
