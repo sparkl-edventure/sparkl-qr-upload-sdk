@@ -63,12 +63,7 @@ export async function generateQrCode(
         ctx.fillStyle = backgroundColor;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(baseImage, 0, 0);
-
-        // Draw text
-        ctx.font = "bold 20px Arial";
-        ctx.fillStyle = color;
-        ctx.textAlign = "center";
-
+        
         // Export final image
         resolve(canvas.toDataURL("image/png"));
       });
