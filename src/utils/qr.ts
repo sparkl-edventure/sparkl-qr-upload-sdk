@@ -68,7 +68,6 @@ export async function generateQrCode(
         ctx.font = "bold 20px Arial";
         ctx.fillStyle = color;
         ctx.textAlign = "center";
-        ctx.fillText("Scan me", canvas.width / 2, size + 28);
 
         // Export final image
         resolve(canvas.toDataURL("image/png"));
