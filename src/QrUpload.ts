@@ -132,7 +132,7 @@ export class QrUpload implements IQRUploadSDK {
         } else {
             const appRoot = document.querySelector("body #root");
             this.container = document.createElement("div");
-            this.container.className = "qr-upload-root";
+            this.container.className = "qr-upload__root";
 
             if (appRoot) {
                 appRoot.appendChild(this.container);
@@ -446,7 +446,7 @@ export class QrUpload implements IQRUploadSDK {
 
         // Wrapper
         const wrapper = document.createElement("div");
-        wrapper.className = "qr-upload-layout";
+        wrapper.className = "qr-upload__layout";
 
         const header = document.createElement("div");
         header.className = "qr-upload__header";
@@ -470,7 +470,7 @@ export class QrUpload implements IQRUploadSDK {
 
         // Main camera/video
         const videoElement = document.createElement("video");
-        videoElement.className = "camera-preview";
+        videoElement.className = "qr-upload__camera_preview";
         videoElement.autoplay = true;
         videoElement.playsInline = true;
         this.videoElement = videoElement;
@@ -480,23 +480,23 @@ export class QrUpload implements IQRUploadSDK {
 
         // Shutter button
         const shutterWrapper = document.createElement("div");
-        shutterWrapper.className = "shutter-wrapper";
+        shutterWrapper.className = "qr-upload__shutter_wrapper";
         shutterWrapper.innerHTML = `
-        <button class="shutter-btn">
-            <span class="inner-circle"></span>
+        <button class="qr-upload__shutter_btn">
+            <span class="qr-upload__inner-circle"></span>
         </button>
     `;
 
         // Preview section
         const previewOverlay = document.createElement("div");
-        previewOverlay.className = "preview-overlay";
+        previewOverlay.className = "qr-upload__preview_overlay";
         previewOverlay.innerHTML = `
-        <div class="preview-container">
-            <div class="no-img-placeholder">
+        <div class="qr-upload__preview_container">
+            <div class="qr-upload__no_img_placeholder">
                 <p>Click capture to add images</p>
             </div>
         </div>
-        <button class="upload-btn" style="display:none;">Upload All</button>
+        <button class="qr-upload__btn" style="display:none;">Upload All</button>
     `;
 
         // Append all
@@ -508,7 +508,7 @@ export class QrUpload implements IQRUploadSDK {
         this.container.appendChild(wrapper);
 
         // Capture button handler
-        const captureBtn = shutterWrapper.querySelector(".shutter-btn");
+        const captureBtn = shutterWrapper.querySelector(".qr-upload__shutter_btn");
         captureBtn?.addEventListener("click", async () => {
             const maxImages = this.config.imageConfig?.maxImages ?? 1;
             if (this.images.length >= maxImages) {
@@ -536,7 +536,7 @@ export class QrUpload implements IQRUploadSDK {
         });
 
         // 🔹 Upload button handler
-        const uploadBtn = previewOverlay.querySelector(".upload-btn") as HTMLButtonElement;
+        const uploadBtn = previewOverlay.querySelector(".qr-upload__btn") as HTMLButtonElement;
         uploadBtn?.addEventListener("click", async () => {
             for (const img of this.images) {
                 if (img.status === "pending" || img.status === "error") {
@@ -551,7 +551,7 @@ export class QrUpload implements IQRUploadSDK {
 
     private showToast(message: string, type: "success" | "error" = "success"): void {
         const toast = document.createElement("div");
-        toast.className = `qr-upload__toast qr-upload__toast--${type}`;
+        toast.className = `qr-upload__toast qr-upload__toast_${type}`;
         toast.textContent = message;
         document.body.appendChild(toast);
         setTimeout(() => toast.remove(), 3000);
@@ -606,15 +606,15 @@ export class QrUpload implements IQRUploadSDK {
         if (!this.container) return;
 
         const previewContainer = this.container.querySelector(
-            ".preview-container"
+            ".qr-upload__preview_container"
         ) as HTMLElement | null;
         const previewOverlay = this.container.querySelector(
-            ".preview-overlay"
+            ".qr-upload__preview_overlay"
         ) as HTMLElement | null;
         const uploadBtn = this.container.querySelector(
-            ".upload-btn"
+            ".qr-upload__upload_btn"
         ) as HTMLButtonElement | null;
-        const captureBtn = this.container.querySelector(".shutter-btn") as HTMLElement | null;
+        const captureBtn = this.container.querySelector(".qr-upload__shutter_btn") as HTMLElement | null;
 
         if (!previewContainer || !previewOverlay) return;
 
@@ -625,7 +625,7 @@ export class QrUpload implements IQRUploadSDK {
         if (this.images.length === 0) {
             // No images placeholder
             previewContainer.innerHTML = `
-                <div class="no-img-placeholder">
+                <div class="qr-upload__no_img_placeholder">
                   <p>Click capture to add images</p>
                 </div>
             `;
@@ -660,17 +660,17 @@ export class QrUpload implements IQRUploadSDK {
             previewOverlay.style.transform = "translate(-50%, -50%)";
 
             const singlePreview = document.createElement("div");
-            singlePreview.className = "single-preview";
+            singlePreview.className = "qr-upload__single_preview";
             singlePreview.innerHTML = `
-                <div class="single-img-wrapper">
-                    <img src="${img.previewUrl}" class="camera-preview" />
-                    <button class="close-btn">&times;</button>
-                    <button class="tick-btn">&#10003;</button>
+                <div class="qr-upload__single_img_wrapper">
+                    <img src="${img.previewUrl}" class="qr-upload__camera_preview" />
+                    <button class="qr-upload__close_btn">&times;</button>
+                    <button class="qr-upload__tick_btn">&#10003;</button>
                 </div>
             `;
 
             // Close button
-            singlePreview.querySelector(".close-btn")?.addEventListener("click", () => {
+            singlePreview.querySelector(".qr-upload__close_btn")?.addEventListener("click", () => {
                 this.removeImage(img.id);
 
                 // Show camera & capture again
@@ -688,7 +688,7 @@ export class QrUpload implements IQRUploadSDK {
             });
 
             // Tick button
-            singlePreview.querySelector(".tick-btn")?.addEventListener("click", async () => {
+            singlePreview.querySelector(".qr-upload__tick_btn")?.addEventListener("click", async () => {
                 await this.submitImages();
 
                 // Show camera & capture again
@@ -719,16 +719,16 @@ export class QrUpload implements IQRUploadSDK {
 
         this.images.forEach((img, index) => {
             const item = document.createElement("div");
-            item.className = "preview-item";
+            item.className = "qr-upload__preview_item";
             item.dataset.index = String(index);
 
             item.innerHTML = `
                 <img src="${img.previewUrl}" alt="preview" />
-                <button class="remove-btn" title="Remove">&times;</button>
+                <button class="qr-upload__remove_btn" title="Remove">&times;</button>
             `;
 
             // Remove button
-            item.querySelector(".remove-btn")?.addEventListener("click", () => {
+            item.querySelector(".qr-upload__remove_btn")?.addEventListener("click", () => {
                 this.removeImage(img.id);
             });
 
@@ -742,10 +742,10 @@ export class QrUpload implements IQRUploadSDK {
             ghostClass: "sortable-ghost",
             chosenClass: "sortable-chosen",
             dragClass: "sortable-drag",
-            filter: ".remove-btn",
+            filter: ".qr-upload__remove_btn",
             onFilter: (evt: Sortable.SortableEvent) => {
                 const oe = (evt as any).originalEvent as Event | undefined;
-                if (oe && (oe.target as HTMLElement).closest(".remove-btn")) {
+                if (oe && (oe.target as HTMLElement).closest(".qr-upload__remove_btn")) {
                     const index = Number(evt.item.dataset.index);
                     const img = this.images[index];
                     if (img) this.removeImage(img.id);
