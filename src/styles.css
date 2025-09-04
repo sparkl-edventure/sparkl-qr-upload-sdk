@@ -2,14 +2,14 @@
     text-align: center;
 }
 
-.qr-upload-root {
+.qr-upload__root {
     position: absolute;
     top: 0;
     left: 0;
     background: #fff;
 }
 
-.qr-upload-layout {
+.qr-upload__layout {
     position: relative;
     width: 100vw;
     height: 100vh;
@@ -43,13 +43,14 @@
 }
 
 
-.camera-preview {
+.qr-upload__camera_preview {
+    margin: 0 auto;
     aspect-ratio: 3/4;
     height: 100%;
     object-fit: fill;
 }
 
-.shutter-btn {
+.qr-upload__shutter_btn {
     position: absolute;
     bottom: 60px;
     left: 50%;
@@ -68,7 +69,7 @@
     transition: transform 0.1s ease-in-out, box-shadow 0.2s ease-in-out;
 }
 
-.shutter-btn::after {
+.qr-upload__shutter_btn::after {
     content: "";
     width: 50px;
     height: 50px;
@@ -78,16 +79,16 @@
     transition: background 0.2s ease-in-out;
 }
 
-.shutter-btn:active {
+.qr-upload__shutter_btn:active {
     transform: translateX(-50%) scale(0.95);
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
 }
 
-.shutter-btn:active::after {
+.qr-upload__shutter_btn:active::after {
     background: #f5f5f5;
 }
 
-.preview-overlay {
+.qr-upload__preview_overlay {
     position: absolute;
     bottom: 135px;
     left: 0;
@@ -96,38 +97,38 @@
     background-color: rgb(0, 0, 0, 0.5);
 }
 
-.preview-container {
+.qr-upload__preview_container {
     display: flex;
     gap: 0.5rem;
     overflow-x: auto;
     padding: 0.5rem;
 }
 
-.preview-item {
+.qr-upload__preview_item {
     position: relative;
     flex: 0 0 auto;
     cursor: grab;
     transition: transform 0.2s ease;
 }
 
-.preview-item.dragging {
+.qr-upload__preview_item.dragging {
     opacity: 0.5;
     transform: scale(0.9);
 }
 
-.preview-item.drag-over {
+.qr-upload__preview_item.drag-over {
     border: 2px dashed #4caf50;
     border-radius: 0.5rem;
 }
 
-.preview-item img {
+.qr-upload__preview_item img {
     width: 80px;
     height: 80px;
     object-fit: fill;
     border-radius: 0.5rem;
 }
 
-.remove-btn {
+.qr-upload__remove_btn {
     position: absolute;
     top: -6px;
     right: -6px;
@@ -141,7 +142,7 @@
     cursor: pointer;
 }
 
-.upload-btn {
+.qr-upload__btn {
     padding: 0.5rem 1rem;
     background: #4caf50;
     color: white;
@@ -152,7 +153,7 @@
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
 }
 
-.no-img-placeholder {
+.qr-upload__no_img_placeholder {
     color: white;
     text-align: center;
     width: 100%;
@@ -182,7 +183,8 @@
 
 
 
-.single-preview {
+.qr-upload__single_preview {
+    margin: 0 auto;
     position: relative;
     display: inline-block;
     width: 100%;
@@ -190,7 +192,7 @@
     /* Adjust as needed */
 }
 
-.single-preview img.camera-preview {
+.qr-upload__single_preview img.qr-upload__camera_preview {
     width: 100%;
     height: auto;
     border-radius: 8px;
@@ -198,7 +200,7 @@
 }
 
 /* Close button (top-left) */
-.single-preview .close-btn {
+.qr-upload__single_preview .qr-upload__close_btn {
     position: absolute;
     bottom: 8px;
     left: 8px;
@@ -217,7 +219,7 @@
 }
 
 /* Tick button (top-right) */
-.single-preview .tick-btn {
+.qr-upload__single_preview .qr-upload__tick_btn {
     position: absolute;
     bottom: 8px;
     right: 8px;
@@ -236,8 +238,8 @@
 }
 
 /* Button hover effect */
-.single-preview .close-btn:hover,
-.single-preview .tick-btn:hover {
+.qr-upload-single-preview .qr-upload__close_btn:hover,
+.qr-upload-single-preview .qr-upload__tick_btn:hover {
     background: rgba(0, 0, 0, 0.7);
 }
 
@@ -252,11 +254,11 @@
     animation: fadein 0.3s, fadeout 0.3s 2.7s;
 }
 
-.qr-upload__toast--success {
+.qr-upload__toast_success {
     background: #28a745;
 }
 
-.qr-upload__toast--error {
+.qr-upload__toast_error {
     background: #dc3545;
 }
 
