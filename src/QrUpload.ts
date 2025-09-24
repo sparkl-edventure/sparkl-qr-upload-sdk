@@ -383,18 +383,29 @@ export class QrUpload implements IQRUploadSDK {
         this.ensureInitialized();
         if (!this.config.fetchApi?.url) return;
 
+        // helper to safely access nested keys, supports array indices
         const getNested = (obj: any, path: string): any => {
-            return path.split(".").reduce((acc, part) => acc?.[part], obj);
+            return path.split(".").reduce((acc, part) => {
+            if (acc == null) return undefined;
+
+            // detect if key is numeric -> use as array index
+            const index = Number(part);
+            if (!isNaN(index) && Array.isArray(acc)) {
+                return acc[index];
+            }
+
+            return acc[part];
+            }, obj);
         };
 
         try {
             const response = await fetch(this.config.fetchApi.url, {
-                headers: this.config.fetchApi.headers,
-                method: "GET",
+            headers: this.config.fetchApi.headers,
+            method: "GET",
             });
 
             if (!response.ok) {
-                throw new Error(`Failed to fetch images: ${response.statusText}`);
+            throw new Error(`Failed to fetch images: ${response.statusText}`);
             }
 
             const data = await response.json();
@@ -403,9 +414,8 @@ export class QrUpload implements IQRUploadSDK {
             const keyPath = this.config.fetchApi.responseKey || "data";
             const items = getNested(data, keyPath);
 
-            if (items && Array.isArray(items) && items.length > 0) {
-                // 🔑 directly fire callback with the raw array
-                this.config.polling?.onNewImages?.(items);
+            if (Array.isArray(items) && items.length > 0) {
+            this.config.polling?.onNewImages?.(items);
             }
         } catch (error) {
             const err = error instanceof Error ? error : new Error(String(error));
