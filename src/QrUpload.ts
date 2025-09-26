@@ -177,6 +177,14 @@ export class QrUpload implements IQRUploadSDK {
         };
     }
 
+    updateImageConfig(config: Partial<ImageConfig>) {
+        this.ensureInitialized();
+        this.config.imageConfig = {
+            ...this.config.imageConfig,
+            ...config
+        };
+    };
+
     updateFetchApi(config: Partial<ApiConfig>) {
         this.ensureInitialized();
 
@@ -527,7 +535,7 @@ export class QrUpload implements IQRUploadSDK {
             }
             try {
                 const blob = await this.captureImage();
-                const file = new File([blob], `capture-${Date.now()}.jpg`, {
+                const file = new File([blob], `${this.config.imageConfig?.fileName || `capture-${Date.now()}.jpg`}`, {
                     type: "image/jpeg",
                 });
 
