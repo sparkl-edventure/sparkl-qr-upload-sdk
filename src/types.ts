@@ -13,6 +13,7 @@ export interface ImageConfig {
   multiPhoto?: boolean;
   maxImages?: number;
   allowedMimeTypes?: string[];
+  fileName?: string;
 } 
 
 
