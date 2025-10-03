@@ -1,6 +1,6 @@
 {
   "name": "qr-upload-sdk",
-  "version": "1.0.1",
+  "version": "1.0.0",
   "type": "module",
   "main": "dist/index.cjs",
   "module": "dist/index.js",
@@ -26,7 +26,7 @@
     "lint": "eslint 'src/**/*.ts'",
     "test": "vitest",
     "typecheck": "tsc --noEmit",
-    "prepare": "npm run build"
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "qr",
@@ -57,6 +57,7 @@
     "prettier": "^3.1.1",
     "tsup": "^8.5.0",
     "typescript": "^5.3.3",
-    "vitest": "^1.1.0"
+    "vitest": "^1.1.0",
+    "rollup": "4.13.0"
   }
 }
