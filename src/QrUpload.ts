@@ -1,6 +1,8 @@
 import type { ImageConfig } from './types';
 import { generateQrCode, generateQrUrl, generateSessionId } from './utils/qr';
+import { QrImageEditor } from './utils/ImageEditor';
 import Sortable from "sortablejs";
+import cameraStar from './../assets/img/camera_star.png';
 
 // Core types
 export interface ImageFile {
@@ -37,14 +39,17 @@ export interface QrUploadConfig {
     };
     uploadApi?: ApiConfig;
     fetchApi?: ApiConfig;
-    autoStartCamera?: boolean;
+    useNativeCamera?: boolean; // If true: native camera app (requires tap); If false: live preview (auto-starts)
     enablePolling?: boolean;
     pollingInterval?: number;
     imageConfig?: ImageConfig;
     polling?: PollingCallbacks;
     onError?: (error: Error) => void;
     onUploadComplete?: (response: any) => void;
+    onImageAccept?: (file: File) => void;
+    onImageReject?: () => void;
     logoUrl?: string | null;
+    enableImageEditor?: boolean;
 }
 
 export interface QRCodeGenerationOptions {
@@ -84,6 +89,7 @@ export class QrUpload implements IQRUploadSDK {
     private mediaStream: MediaStream | null = null;
     private pollingInterval: NodeJS.Timeout | null = null;
     private isPolling: boolean = false;
+    private nativeCameraInput: HTMLInputElement | null = null;
 
     private defaultConfig: QrUploadConfig = {
         qrUrl: {
@@ -100,7 +106,7 @@ export class QrUpload implements IQRUploadSDK {
             headers: {},
             responseKey: 'data'
         },
-        autoStartCamera: true,
+        useNativeCamera: true,
         enablePolling: false,
         pollingInterval: 3000, // Default to 3 seconds
         imageConfig: {
@@ -109,7 +115,8 @@ export class QrUpload implements IQRUploadSDK {
             allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp']
         },
         polling: {},
-        logoUrl: null
+        logoUrl: null,
+        enableImageEditor: true // Enable image editor by default
     };
 
     constructor(config?: Partial<QrUploadConfig>) {
@@ -146,9 +153,14 @@ export class QrUpload implements IQRUploadSDK {
         const currentPath = window.location.pathname;
         const sdkRoute = this.config.qrUrl?.sdkRoute ?? "/qr-upload";
         if (currentPath === sdkRoute || currentPath.endsWith(sdkRoute)) {
-
-            this.startCamera();
-            this.renderInterface();
+            if (this.config.useNativeCamera) {
+                // Native camera app (file input) - requires user tap
+                this.renderNativeCameraInterface();
+            } else {
+                // Live camera preview (getUserMedia) - auto-starts without tap
+                this.startCamera();
+                this.renderInterface();
+            }
         }
 
     }
@@ -789,6 +801,326 @@ export class QrUpload implements IQRUploadSDK {
             this.images.splice(index, 1);
             this.renderPreviews();
         }
+    }
+
+    /**
+     * Renders native camera interface using HTML5 input[type=file] with capture attribute
+     * Provides native camera access with all phone camera features
+     */
+    private renderNativeCameraInterface(): void {
+        this.ensureInitialized();
+
+        if (!this.container) {
+            throw new Error("Container not initialized. Call mount() first.");
+        }
+
+        // Clear container
+        this.container.innerHTML = "";
+
+        // Main wrapper
+        const wrapper = document.createElement("div");
+        wrapper.className = "qr-upload__layout qr-upload__native-camera";
+
+        // Header
+        const header = document.createElement("div");
+        header.className = "qr-upload__header";
+
+        if (this.config?.logoUrl) {
+            const logoImg = document.createElement("img");
+            logoImg.src = this.config.logoUrl;
+            logoImg.alt = "Logo";
+            logoImg.className = "qr-upload__logo";
+            header.appendChild(logoImg);
+        }
+
+        // Native camera input (hidden)
+        const fileInput = document.createElement("input");
+        fileInput.type = "file";
+        fileInput.accept = (this.config.imageConfig?.allowedMimeTypes || ['image/jpeg', 'image/png', 'image/webp']).join(',');
+        fileInput.setAttribute("capture", ""); // Opens full native camera app with all features
+        fileInput.style.display = "none";
+        fileInput.id = "qr-upload-native-input";
+        
+        // Store reference for external trigger
+        this.nativeCameraInput = fileInput;
+
+        // Content area with title and description
+        const contentArea = document.createElement("div");
+        contentArea.className = "qr-upload__content-area";
+        
+        const mainTitle = document.createElement("h2");
+        mainTitle.className = "qr-upload__main-title";
+        mainTitle.textContent = "Upload your Answer";
+        
+        const description = document.createElement("p");
+        description.className = "qr-upload__description";
+        description.textContent = "Tap the camera below to capture";
+        
+        contentArea.appendChild(mainTitle);
+        contentArea.appendChild(description);
+
+
+        
+
+
+        // Camera button container
+        const cameraContainer = document.createElement("div");
+        cameraContainer.className = "qr-upload__native-camera-container";
+
+        cameraContainer.classList.add('blob-eclipse-container');
+
+        const blobEclipse1 = document.createElement('div');
+        blobEclipse1.classList.add('blob-eclipse', 'blob-eclipse1');
+    
+        const blobEclipse2 = document.createElement('div');
+        blobEclipse2.classList.add('blob-eclipse', 'blob-eclipse2');
+    
+        cameraContainer.appendChild(blobEclipse1);
+        cameraContainer.appendChild(blobEclipse2);
+
+        const cameraButton = document.createElement("button");
+        cameraButton.className = "qr-upload__native-camera-btn";
+        
+        // Create circular camera button design
+        cameraButton.innerHTML = `
+            <div class="qr-upload__camera-circle">
+            <div class="flex flex-col">
+                <img src="${cameraStar}" alt="camera_star"/>
+                <span class="qr-upload__camera-text">Tap to Open<br>Camera</span>
+                </div>
+            </div>
+           
+        `;
+
+        // Preview overlay for image confirmation
+        const previewOverlay = document.createElement("div");
+        previewOverlay.className = "qr-upload__native-preview-overlay";
+        previewOverlay.style.display = "none";
+        previewOverlay.innerHTML = `
+            <div class="qr-upload__native-preview-container">
+                <img class="qr-upload__native-preview-img" alt="Captured image" />
+                <div class="qr-upload__native-preview-actions">
+                    <button class="qr-upload__native-close-btn" title="Reject image">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                    </button>
+                    <button class="qr-upload__native-edit-btn" title="Edit image">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                        </svg>
+                    </button>
+                    <button class="qr-upload__native-tick-btn" title="Accept image">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        `;
+
+        // Event listeners
+        cameraButton.addEventListener("click", () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener("change", async (e) => {
+            const target = e.target as HTMLInputElement;
+            const file = target.files?.[0];
+
+            if (!file) return;
+
+            // Validate file type
+            const allowedTypes = this.config.imageConfig?.allowedMimeTypes || ['image/jpeg', 'image/png', 'image/webp'];
+            if (!allowedTypes.includes(file.type)) {
+                this.showToast(`Invalid file type. Allowed: ${allowedTypes.join(', ')}`, "error");
+                return;
+            }
+
+            // Show preview with close and tick buttons
+            const previewImg = previewOverlay.querySelector(".qr-upload__native-preview-img") as HTMLImageElement;
+            previewImg.src = URL.createObjectURL(file);
+            previewOverlay.style.display = "flex";
+            cameraContainer.style.display = "none";
+
+            // Store the current file for callbacks
+            const currentFile = file;
+
+            // Close button handler
+            const closeBtn = previewOverlay.querySelector(".qr-upload__native-close-btn");
+            const closeHandler = () => {
+                URL.revokeObjectURL(previewImg.src);
+                previewOverlay.style.display = "none";
+                cameraContainer.style.display = "flex";
+                fileInput.value = ""; // Reset input
+
+                // Call reject callback
+                if (this.config.onImageReject) {
+                    this.config.onImageReject();
+                }
+            };
+            closeBtn?.addEventListener("click", closeHandler);
+
+            // Edit button handler
+            const editBtn = previewOverlay.querySelector(".qr-upload__native-edit-btn");
+            const editHandler = () => {
+                // Hide preview
+                previewOverlay.style.display = "none";
+                
+                // Open image editor
+                this.openImageEditorWithUpload(currentFile, previewImg.src, cameraContainer, fileInput);
+            };
+            editBtn?.addEventListener("click", editHandler);
+
+            // Tick button handler (Accept without editing)
+            const tickBtn = previewOverlay.querySelector(".qr-upload__native-tick-btn");
+            const tickHandler = async () => {
+                // Hide preview
+                previewOverlay.style.display = "none";
+                
+                // Call accept callback
+                if (this.config.onImageAccept) {
+                    this.config.onImageAccept(currentFile);
+                }
+
+                // Upload directly without editing
+                try {
+                        const imageFile: ImageFile = {
+                            id: crypto.randomUUID(),
+                            previewUrl: previewImg.src,
+                            file: currentFile,
+                            status: "pending",
+                        };
+
+                        this.images.push(imageFile);
+
+                        // Upload if API is configured
+                        if (this.config.uploadApi?.url) {
+                            imageFile.status = "uploading";
+                            const response = await this.uploadImage(currentFile);
+                            imageFile.status = "uploaded";
+
+                            if (this.config.onUploadComplete) {
+                                this.config.onUploadComplete(response);
+                            }
+
+                            this.showToast("Image uploaded successfully!", "success");
+                        }
+
+                    // Reset UI
+                    URL.revokeObjectURL(previewImg.src);
+                    cameraContainer.style.display = "flex";
+                    fileInput.value = ""; // Reset input
+
+                } catch (error) {
+                    this.handleError(error instanceof Error ? error : new Error(String(error)));
+                    this.showToast("Failed to process image", "error");
+
+                    // Reset UI on error
+                    URL.revokeObjectURL(previewImg.src);
+                    previewOverlay.style.display = "none";
+                    cameraContainer.style.display = "flex";
+                    fileInput.value = "";
+                }
+            };
+            tickBtn?.addEventListener("click", tickHandler);
+        });
+
+        // Append elements
+        cameraContainer.appendChild(contentArea);
+        cameraContainer.appendChild(cameraButton);
+        wrapper.appendChild(header);
+        wrapper.appendChild(cameraContainer);
+        wrapper.appendChild(previewOverlay);
+        wrapper.appendChild(fileInput);
+
+        this.container.appendChild(wrapper);
+
+    }
+
+    /**
+     * Trigger the native camera to open
+     * Must be called from a user interaction context (e.g., button click)
+     */
+    triggerCamera(): void {
+        if (this.nativeCameraInput) {
+            this.nativeCameraInput.click();
+        } else {
+            throw new Error('Native camera input not initialized. Ensure you have mounted the SDK first.');
+        }
+    }
+
+    /**
+     * Open the image editor for rotating and cropping (for native camera with upload)
+     */
+    private openImageEditorWithUpload(
+        file: File,
+        previewUrl: string,
+        cameraContainer: HTMLElement,
+        fileInput: HTMLInputElement
+    ): void {
+        // Instantiate editor - it will show automatically after loading
+        new QrImageEditor(file, {
+            uploadApi: this.config.uploadApi ? {
+                url: this.config.uploadApi.url,
+                method: this.config.uploadApi.method,
+                headers: this.config.uploadApi.headers,
+                body: this.config.uploadApi.body,
+                fileKey: this.config.uploadApi.fileKey,
+                responseKey: this.config.uploadApi.responseKey,
+                onUploadImageSuccess: (uploadedFiles: File[]) => {
+                    // Handle successful upload
+                    if (this.config.uploadApi?.onUploadImageSuccess) {
+                        this.config.uploadApi.onUploadImageSuccess(uploadedFiles);
+                    }
+                    if (this.config.onUploadComplete) {
+                        this.config.onUploadComplete({ files: uploadedFiles });
+                    }
+                    this.showToast("Image uploaded successfully!", "success");
+                }
+            } : undefined,
+            onSave: async (editedFile: File) => {
+                try {
+                    const imageFile: ImageFile = {
+                        id: crypto.randomUUID(),
+                        previewUrl: URL.createObjectURL(editedFile),
+                        file: editedFile,
+                        status: "uploaded", // Set as uploaded since ImageEditor handles upload
+                    };
+
+                    this.images.push(imageFile);
+
+                    // Clean up and reset UI
+                    URL.revokeObjectURL(previewUrl);
+                    cameraContainer.style.display = "flex";
+                    fileInput.value = "";
+                } catch (error) {
+                    this.handleError(error instanceof Error ? error : new Error(String(error)));
+                    this.showToast("Failed to process image", "error");
+                    
+                    // Reset UI on error
+                    URL.revokeObjectURL(previewUrl);
+                    cameraContainer.style.display = "flex";
+                    fileInput.value = "";
+                }
+            },
+            onCancel: () => {
+                // Call reject callback if provided
+                if (this.config.onImageReject) {
+                    this.config.onImageReject();
+                }
+                
+                // Clean up and return to camera
+                URL.revokeObjectURL(previewUrl);
+                cameraContainer.style.display = "flex";
+                fileInput.value = "";
+            },
+            fileName: this.config.imageConfig?.fileName || `edited-${Date.now()}.jpg`
+        });
+        
+        // Editor will show automatically after loading the image
     }
 }
 
