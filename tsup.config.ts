@@ -5,8 +5,8 @@ import path from 'path';
 // Function to copy CSS file to dist
 async function copyCSS() {
   try {
-    const srcPath = path.resolve(__dirname, 'src/styles.css');
-    const destPath = path.resolve(__dirname, 'dist/styles.css');
+    const srcPath = path.resolve(process.cwd(), 'src/styles.css');
+    const destPath = path.resolve(process.cwd(), 'dist/styles.css');
     await fs.mkdir(path.dirname(destPath), { recursive: true });
     await fs.copyFile(srcPath, destPath);
     console.log('CSS file copied successfully');
@@ -47,11 +47,17 @@ export default defineConfig({
   // External dependencies (won't be bundled)
   external: ['react', 'react-dom'],
   
-  // Configure esbuild to handle CSS
+  // Configure esbuild to handle CSS and images
   esbuildOptions(options) {
     options.loader = {
       ...(options.loader || {}),
-      '.css': 'css'
+      '.css': 'css',
+      '.png': 'dataurl',
+      '.jpg': 'dataurl',
+      '.jpeg': 'dataurl',
+      '.gif': 'dataurl',
+      '.svg': 'dataurl',
+      '.webp': 'dataurl'
     };
   },
   
