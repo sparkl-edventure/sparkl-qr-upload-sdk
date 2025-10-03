@@ -1,21 +1,21 @@
-import { defineConfig } from 'tsup';
-import { promises as fs } from 'fs';
-import path from 'path';
+const { defineConfig } = require('tsup');
+const fs = require('fs');
+const { resolve, dirname } = require('path');
 
 // Function to copy CSS file to dist
 async function copyCSS() {
   try {
-    const srcPath = path.resolve(process.cwd(), 'src/styles.css');
-    const destPath = path.resolve(process.cwd(), 'dist/styles.css');
-    await fs.mkdir(path.dirname(destPath), { recursive: true });
-    await fs.copyFile(srcPath, destPath);
+    const srcPath = resolve(process.cwd(), 'src/styles.css');
+    const destPath = resolve(process.cwd(), 'dist/styles.css');
+    await fs.promises.mkdir(dirname(destPath), { recursive: true });
+    await fs.promises.copyFile(srcPath, destPath);
     console.log('CSS file copied successfully');
   } catch (error) {
     console.error('Error copying CSS file:', error);
   }
 }
 
-export default defineConfig({
+module.exports = defineConfig({
   // Entry points
   entry: ['src/index.ts'],
   
