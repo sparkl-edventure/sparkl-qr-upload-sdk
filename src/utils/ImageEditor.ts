@@ -64,6 +64,67 @@ export class QrImageEditor {
         this.openEditor(file);
     }
 
+    // ===== DRY OPTIMIZATION METHODS =====
+    
+    /**
+     * Get element from overlay with null check
+     */
+    private getElement<T extends HTMLElement>(selector: string): T | null {
+        return this.overlay?.querySelector(selector) as T || null;
+    }
+
+    /**
+     * Get multiple elements from overlay
+     */
+    private getElements<T extends HTMLElement>(selector: string): NodeListOf<T> | null {
+        return this.overlay?.querySelectorAll(selector) as NodeListOf<T> || null;
+    }
+
+    /**
+     * Add event listener with null check
+     */
+    private addListener<K extends keyof HTMLElementEventMap>(
+        element: HTMLElement | null,
+        event: K,
+        handler: (e: HTMLElementEventMap[K]) => void
+    ): void {
+        element?.addEventListener(event, handler);
+    }
+
+    /**
+     * Update state and save/render
+     */
+    private updateState(updates: Partial<EditorState>, shouldSave = true, shouldRender = true): void {
+        Object.assign(this.state, updates);
+        if (shouldSave) this.saveState();
+        if (shouldRender) this.render();
+    }
+
+    /**
+     * Toggle flip state
+     */
+    private toggleFlip(type: 'horizontal' | 'vertical'): void {
+        const updates = type === 'horizontal'
+            ? { flipX: !this.state.flipX }
+            : { flipY: !this.state.flipY };
+        this.updateState(updates, true, true);
+    }
+
+    /**
+     * Reset crop to full image
+     */
+    private resetCropToFullImage(): void {
+        if (!this.image) return;
+        this.updateState({
+            cropX: 0,
+            cropY: 0,
+            cropWidth: this.image.width,
+            cropHeight: this.image.height
+        });
+    }
+
+    // ===== END DRY OPTIMIZATION METHODS =====
+
     private async openEditor(file: File): Promise<void> {
         try {
             // Load image
@@ -72,9 +133,8 @@ export class QrImageEditor {
             // Store original image for reset functionality
             this.originalImage = this.image;
             
-            // Initialize crop dimensions to full image
-            this.state.cropWidth = this.image.width;
-            this.state.cropHeight = this.image.height;
+            // Initialize crop dimensions to match displayed image size (not original)
+            // This will be set after canvas size calculation
             this.state.cropX = 0;
             this.state.cropY = 0;
             
@@ -238,6 +298,11 @@ export class QrImageEditor {
         this.canvas = this.overlay.querySelector('.qr-editor-canvas');
         if (this.canvas) {
             this.ctx = this.canvas.getContext('2d');
+            // Set high-quality rendering settings
+            if (this.ctx) {
+                this.ctx.imageSmoothingEnabled = true;
+                this.ctx.imageSmoothingQuality = 'high';
+            }
         }
         
         // Attach event listeners
@@ -247,71 +312,53 @@ export class QrImageEditor {
     private attachEventListeners(): void {
         if (!this.overlay) return;
         
-        // Close button
-        const closeBtn = this.overlay.querySelector('.qr-editor-btn-close');
-        closeBtn?.addEventListener('click', () => this.handleCancel());
-        
-        // Save button
-        const saveBtn = this.overlay.querySelector('.qr-editor-btn-save');
-        saveBtn?.addEventListener('click', () => this.handleSave());
+        // Close and save buttons
+        this.addListener(this.getElement('.qr-editor-btn-close'), 'click', () => this.handleCancel());
+        this.addListener(this.getElement('.qr-editor-btn-save'), 'click', () => this.handleSave());
         
         // Tool buttons (undo/redo)
-        const toolButtons = this.overlay.querySelectorAll('.qr-editor-tool-btn');
-        toolButtons.forEach(btn => {
-            btn.addEventListener('click', (e) => {
+        const toolButtons = this.getElements('.qr-editor-tool-btn');
+        toolButtons?.forEach(btn => {
+            this.addListener(btn, 'click', (e) => {
                 const action = (e.currentTarget as HTMLElement).dataset.action;
                 if (action) this.handleToolAction(action);
             });
         });
         
         // Tabs (Rotation and Crop)
-        const tabs = this.overlay.querySelectorAll('.qr-editor-tab:not(.qr-flip-toggle-tab)');
-        tabs.forEach(tab => {
-            tab.addEventListener('click', (e) => {
-                const element = e.currentTarget as HTMLElement;
-                const tabName = element.dataset.tab as 'rotation' | 'crop';
-                
-                if (tabName) {
-                    this.switchTab(tabName);
-                }
+        const tabs = this.getElements('.qr-editor-tab:not(.qr-flip-toggle-tab)');
+        tabs?.forEach(tab => {
+            this.addListener(tab, 'click', (e) => {
+                const tabName = (e.currentTarget as HTMLElement).dataset.tab as 'rotation' | 'crop';
+                if (tabName) this.switchTab(tabName);
             });
         });
         
-        // Flip toggle tabs (toggle flip state when clicked)
-        const flipTabs = this.overlay.querySelectorAll('.qr-flip-toggle-tab');
-        flipTabs.forEach(tab => {
-            tab.addEventListener('click', (e) => {
+        // Flip toggle tabs
+        const flipTabs = this.getElements('.qr-flip-toggle-tab');
+        flipTabs?.forEach(tab => {
+            this.addListener(tab, 'click', (e) => {
                 const element = e.currentTarget as HTMLElement;
-                const flipType = element.dataset.flip;
+                const flipType = element.dataset.flip as 'horizontal' | 'vertical';
                 
-                if (flipType === 'horizontal') {
-                    this.state.flipX = !this.state.flipX;
-                    element.classList.toggle('active', this.state.flipX);
-                } else if (flipType === 'vertical') {
-                    this.state.flipY = !this.state.flipY;
-                    element.classList.toggle('active', this.state.flipY);
+                if (flipType) {
+                    this.toggleFlip(flipType);
+                    element.classList.toggle('active', flipType === 'horizontal' ? this.state.flipX : this.state.flipY);
                 }
-                
-                this.saveState();
-                this.render();
             });
         });
         
         // Crop buttons
-        const resetCropBtn = this.overlay.querySelector('.qr-reset-crop-btn');
-        resetCropBtn?.addEventListener('click', () => this.resetCrop());
-        
-        const saveCropBtn = this.overlay.querySelector('.qr-save-crop-btn');
-        saveCropBtn?.addEventListener('click', () => this.applyCrop());
+        this.addListener(this.getElement('.qr-reset-crop-btn'), 'click', () => this.resetCrop());
+        this.addListener(this.getElement('.qr-save-crop-btn'), 'click', () => this.applyCrop());
         
         // Rotation slider
-        const rotationSlider = this.overlay.querySelector('.qr-rotation-slider') as HTMLInputElement;
+        const rotationSlider = this.getElement<HTMLInputElement>('.qr-rotation-slider');
         let rotationTimeout: NodeJS.Timeout;
-        rotationSlider?.addEventListener('input', (e) => {
+        this.addListener(rotationSlider, 'input', (e) => {
             const value = parseInt((e.target as HTMLInputElement).value);
-            this.state.rotation = value;
+            this.updateState({ rotation: value }, false, true);
             this.updateRotationValue();
-            this.render();
             
             // Debounce state saving to avoid too many history entries
             clearTimeout(rotationTimeout);
@@ -328,9 +375,7 @@ export class QrImageEditor {
     }
     
     private createSliderDots(): void {
-        if (!this.overlay) return;
-        
-        const dotsContainer = this.overlay.querySelector('.qr-slider-dots');
+        const dotsContainer = this.getElement('.qr-slider-dots');
         if (!dotsContainer) return;
         
         // Create dots from -180 to +180, every 15 degrees
@@ -348,9 +393,7 @@ export class QrImageEditor {
     }
     
     private setupCropHandlers(): void {
-        if (!this.overlay) return;
-        
-        this.cropOverlay = this.overlay.querySelector('.qr-crop-overlay');
+        this.cropOverlay = this.getElement('.qr-crop-overlay');
         if (!this.cropOverlay) return;
         
         // Set initial visibility based on crop mode (crop mode is true by default)
@@ -412,12 +455,12 @@ export class QrImageEditor {
         };
     }
     
-    private startCropMove(e: MouseEvent | Touch): void {
-        if (e instanceof MouseEvent) {
-            e.preventDefault();
-            e.stopPropagation();
+    private startCropMove(e: MouseEvent): void {
+        if (!this.image) {
+            return;
         }
         
+        console.log('Starting crop move');
         this.isDraggingCrop = true;
         this.dragType = 'move';
         
@@ -431,6 +474,9 @@ export class QrImageEditor {
             width: this.state.cropWidth,
             height: this.state.cropHeight
         };
+        
+        e.preventDefault();
+        e.stopPropagation();
     }
     
     private onCropDrag(e: MouseEvent | TouchEvent): void {
@@ -493,6 +539,10 @@ export class QrImageEditor {
         }
         
         this.render();
+        // Ensure crop overlay updates immediately during drag
+        if (this.cropMode) {
+            this.updateCropOverlay();
+        }
     }
     
     private stopCropDrag(): void {
@@ -505,15 +555,7 @@ export class QrImageEditor {
     }
     
     private resetCrop(): void {
-        if (!this.image) return;
-        
-        this.state.cropX = 0;
-        this.state.cropY = 0;
-        this.state.cropWidth = this.image.width;
-        this.state.cropHeight = this.image.height;
-        
-        this.saveState();
-        this.render();
+        this.resetCropToFullImage();
     }
 
     private resetAll(): void {
@@ -558,6 +600,10 @@ export class QrImageEditor {
         const tempCanvas = document.createElement('canvas');
         const tempCtx = tempCanvas.getContext('2d');
         if (!tempCtx) return;
+        
+        // Set high-quality rendering settings
+        tempCtx.imageSmoothingEnabled = true;
+        tempCtx.imageSmoothingQuality = 'high';
         
         // Set canvas to crop size
         tempCanvas.width = this.state.cropWidth;
@@ -635,29 +681,21 @@ export class QrImageEditor {
         }
         
         // Update tab buttons (only rotation and crop, not flip toggles)
-        const tabs = this.overlay.querySelectorAll('.qr-editor-tab:not(.qr-flip-toggle-tab)');
-        tabs.forEach(t => {
-            if (t.getAttribute('data-tab') === tab) {
-                t.classList.add('active');
-            } else {
-                t.classList.remove('active');
-            }
+        const tabs = this.getElements('.qr-editor-tab:not(.qr-flip-toggle-tab)');
+        tabs?.forEach(t => {
+            t.classList.toggle('active', t.getAttribute('data-tab') === tab);
         });
         
         // Update tab content
-        const contents = this.overlay.querySelectorAll('.qr-editor-tab-content');
-        contents.forEach(c => {
-            if (c.getAttribute('data-content') === tab) {
-                (c as HTMLElement).style.display = 'block';
-            } else {
-                (c as HTMLElement).style.display = 'none';
-            }
+        const contents = this.getElements('.qr-editor-tab-content');
+        contents?.forEach(c => {
+            const element = c as HTMLElement;
+            element.style.display = c.getAttribute('data-content') === tab ? 'block' : 'none';
         });
     }
 
     private updateRotationValue(): void {
-        if (!this.overlay) return;
-        const valueSpan = this.overlay.querySelector('.qr-rotation-value');
+        const valueSpan = this.getElement('.qr-rotation-value');
         if (valueSpan) {
             valueSpan.textContent = `${this.state.rotation}°`;
         }
@@ -676,14 +714,10 @@ export class QrImageEditor {
                 this.resetAll();
                 break;
             case 'flip-h':
-                this.state.flipX = !this.state.flipX;
-                this.saveState();
-                this.render();
+                this.toggleFlip('horizontal');
                 break;
             case 'flip-v':
-                this.state.flipY = !this.state.flipY;
-                this.saveState();
-                this.render();
+                this.toggleFlip('vertical');
                 break;
         }
     }
@@ -799,23 +833,22 @@ export class QrImageEditor {
         if (!this.overlay) return;
         
         // Update rotation slider
-        const rotationSlider = this.overlay.querySelector('.qr-rotation-slider') as HTMLInputElement;
+        const rotationSlider = this.getElement<HTMLInputElement>('.qr-rotation-slider');
         if (rotationSlider) {
             rotationSlider.value = String(this.state.rotation);
             this.updateRotationValue();
         }
         
         // Update flip toggle tabs
-        const flipTabs = this.overlay.querySelectorAll('.qr-flip-toggle-tab');
-        flipTabs.forEach(tab => {
+        const flipTabs = this.getElements('.qr-flip-toggle-tab');
+        flipTabs?.forEach(tab => {
             const element = tab as HTMLElement;
             const flipType = element.dataset.flip;
             
-            if (flipType === 'horizontal') {
-                element.classList.toggle('active', this.state.flipX);
-            } else if (flipType === 'vertical') {
-                element.classList.toggle('active', this.state.flipY);
-            }
+            element.classList.toggle('active', 
+                flipType === 'horizontal' ? this.state.flipX : 
+                flipType === 'vertical' ? this.state.flipY : false
+            );
         });
         
         // Update crop overlay position if in crop mode
@@ -835,7 +868,7 @@ export class QrImageEditor {
         // Get container dimensions with fallback to viewport
         const containerElement = this.canvas.parentElement;
         const containerWidth = containerElement?.clientWidth || viewportWidth;
-        const containerHeight = containerElement?.clientHeight || (viewportHeight * 0.7); // Reserve space for controls
+        const containerHeight = containerElement?.clientHeight || (viewportHeight * 0.75); // Increased height allocation
         
         console.log('Container dimensions:', containerWidth, 'x', containerHeight);
         console.log('Image dimensions:', this.image.width, 'x', this.image.height);
@@ -847,14 +880,14 @@ export class QrImageEditor {
         let displayWidth: number;
         let displayHeight: number;
         
-        // Fill container completely for mobile
+        // Fill container more completely for better visibility
         if (imgRatio > containerRatio) {
             // Image is wider - fit to width
-            displayWidth = containerWidth * 0.98; // Small margin for mobile
+            displayWidth = containerWidth * 0.95; // Increased from 0.98 to 0.95 for better fit
             displayHeight = displayWidth / imgRatio;
         } else {
             // Image is taller - fit to height  
-            displayHeight = containerHeight * 0.98; // Small margin for mobile
+            displayHeight = containerHeight * 0.95; // Increased from 0.98 to 0.95 for better fit
             displayWidth = displayHeight * imgRatio;
         }
         
@@ -864,6 +897,14 @@ export class QrImageEditor {
         this.fixedCanvasWidth = displayWidth;
         this.fixedCanvasHeight = displayHeight;
         this.imageScale = displayWidth / this.image.width;
+        
+        // Initialize crop dimensions to full image if not set
+        if (this.state.cropWidth === 0 || this.state.cropHeight === 0) {
+            this.state.cropX = 0;
+            this.state.cropY = 0;
+            this.state.cropWidth = this.image.width;  // Full image width in original coordinates
+            this.state.cropHeight = this.image.height; // Full image height in original coordinates
+        }
     }
 
     private render(): void {
@@ -879,6 +920,10 @@ export class QrImageEditor {
         
         // Clear canvas
         this.ctx.clearRect(0, 0, displayWidth, displayHeight);
+        
+        // Set high-quality rendering for display
+        this.ctx.imageSmoothingEnabled = true;
+        this.ctx.imageSmoothingQuality = 'high';
         
         // Save context state
         this.ctx.save();
@@ -956,8 +1001,14 @@ export class QrImageEditor {
         // Calculate the actual displayed image position on canvas
         const displayedImageWidth = this.fixedCanvasWidth;
         const displayedImageHeight = this.fixedCanvasHeight;
-        const imageStartX = canvasOffsetX + (this.canvas.width - displayedImageWidth) / 2;
-        const imageStartY = canvasOffsetY + (this.canvas.height - displayedImageHeight) / 2;
+        
+        // Get the actual canvas dimensions
+        const canvasDisplayWidth = this.canvas.offsetWidth;
+        const canvasDisplayHeight = this.canvas.offsetHeight;
+        
+        // Calculate image position within the canvas (centered) - more precise calculation
+        const imageStartX = canvasOffsetX + Math.round((canvasDisplayWidth - displayedImageWidth) / 2);
+        const imageStartY = canvasOffsetY + Math.round((canvasDisplayHeight - displayedImageHeight) / 2);
         
         // Calculate crop rectangle in screen coordinates relative to displayed image
         const cropLeft = imageStartX + (this.state.cropX * this.imageScale);
@@ -965,20 +1016,28 @@ export class QrImageEditor {
         const cropWidth = (this.state.cropWidth * this.imageScale);
         const cropHeight = (this.state.cropHeight * this.imageScale);
         
+        // Ensure crop overlay stays within the displayed image bounds
+        const maxCropLeft = imageStartX + displayedImageWidth - cropWidth;
+        const maxCropTop = imageStartY + displayedImageHeight - cropHeight;
+        
+        const constrainedCropLeft = Math.max(imageStartX, Math.min(cropLeft, maxCropLeft));
+        const constrainedCropTop = Math.max(imageStartY, Math.min(cropTop, maxCropTop));
+        
         console.log('Updating crop overlay:', {
             imageInfo: { width: this.image.width, height: this.image.height },
             displayedImage: { width: displayedImageWidth, height: displayedImageHeight },
             imagePosition: { x: imageStartX, y: imageStartY },
             cropState: { x: this.state.cropX, y: this.state.cropY, w: this.state.cropWidth, h: this.state.cropHeight },
             imageScale: this.imageScale,
-            finalPosition: { left: cropLeft, top: cropTop, width: cropWidth, height: cropHeight }
+            originalPosition: { left: cropLeft, top: cropTop },
+            finalPosition: { left: constrainedCropLeft, top: constrainedCropTop, width: cropWidth, height: cropHeight }
         });
         
-        // Position the overlay
-        this.cropOverlay.style.left = `${cropLeft}px`;
-        this.cropOverlay.style.top = `${cropTop}px`;
-        this.cropOverlay.style.width = `${cropWidth}px`;
-        this.cropOverlay.style.height = `${cropHeight}px`;
+        // Position the overlay using constrained values with precise pixel alignment
+        this.cropOverlay.style.left = `${Math.round(constrainedCropLeft)}px`;
+        this.cropOverlay.style.top = `${Math.round(constrainedCropTop)}px`;
+        this.cropOverlay.style.width = `${Math.round(cropWidth)}px`;
+        this.cropOverlay.style.height = `${Math.round(cropHeight)}px`;
         
         // Ensure overlay is visible
         this.cropOverlay.style.display = 'block';
@@ -1012,6 +1071,13 @@ export class QrImageEditor {
             const finalCtx = finalCanvas.getContext('2d');
             
             if (!finalCtx) throw new Error('Failed to create canvas context');
+            
+            // Set maximum quality rendering settings
+            finalCtx.imageSmoothingEnabled = true;
+            finalCtx.imageSmoothingQuality = 'high';
+            
+            // Additional quality settings for better rendering
+            finalCtx.globalCompositeOperation = 'source-over';
             
             // Set output dimensions based on crop area only
             const outputWidth = Math.round(this.state.cropWidth);
@@ -1050,29 +1116,37 @@ export class QrImageEditor {
             
             finalCtx.restore();
             
-            // Convert to blob
+            // Convert to blob - use PNG for lossless quality, fallback to high-quality JPEG
             const blob = await new Promise<Blob>((resolve, reject) => {
+                // Try PNG first for lossless quality
                 finalCanvas.toBlob(
                     (b) => {
-                        if (b) resolve(b);
-                        else reject(new Error('Failed to create blob'));
+                        if (b) {
+                            resolve(b);
+                        } else {
+                            // Fallback to high-quality JPEG
+                            finalCanvas.toBlob(
+                                (jpegBlob) => {
+                                    if (jpegBlob) resolve(jpegBlob);
+                                    else reject(new Error('Failed to create blob'));
+                                },
+                                'image/jpeg',
+                                1.0  // Maximum quality
+                            );
+                        }
                     },
-                    'image/jpeg',
-                    0.95
+                    'image/png'  // Use PNG for lossless quality
                 );
             });
             
-            // Create file
-            const fileName = this.config.fileName || `edited-${Date.now()}.jpg`;
-            const file = new File([blob], fileName, { type: 'image/jpeg' });
+            // Create file with appropriate extension
+            const isPng = blob.type === 'image/png';
+            const fileName = this.config.fileName || `edited-${Date.now()}.${isPng ? 'png' : 'jpg'}`;
+            const file = new File([blob], fileName, { type: blob.type });
             
-            // Upload image if uploadApi is provided
-            if (this.config.uploadApi) {
-                await this.uploadImage(file);
-            } else {
-                // Call save callback
-                this.config.onSave(file);
-            }
+            // Always call save callback without uploading
+            // Upload will be handled later by the parent component
+            this.config.onSave(file);
             
             // Close editor
             this.close();
@@ -1082,55 +1156,6 @@ export class QrImageEditor {
         }
     }
 
-    private async uploadImage(file: File): Promise<void> {
-        if (!this.config.uploadApi) return;
-        
-        const uploadApi = this.config.uploadApi;
-        
-        try {
-            // Show upload progress (you can enhance this with a progress bar)
-            console.log('Uploading edited image...');
-            
-            // Create FormData
-            const formData = new FormData();
-            const fileKey = uploadApi.fileKey || 'file';
-            formData.append(fileKey, file);
-            
-            // Add additional body parameters if provided
-            if (uploadApi.body) {
-                Object.entries(uploadApi.body).forEach(([key, value]) => {
-                    formData.append(key, value);
-                });
-            }
-            
-            // Make upload request
-            const response = await fetch(uploadApi.url, {
-                method: uploadApi.method || 'POST',
-                headers: uploadApi.headers || {},
-                body: formData
-            });
-            
-            if (!response.ok) {
-                throw new Error(`Upload failed: ${response.status} ${response.statusText}`);
-            }
-            
-            const result = await response.json();
-            console.log('Upload successful:', result);
-            
-            // Call success callback if provided
-            if (uploadApi.onUploadImageSuccess) {
-                uploadApi.onUploadImageSuccess([file]);
-            }
-            
-            // Also call the original save callback
-            this.config.onSave(file);
-            
-        } catch (error) {
-            console.error('Upload failed:', error);
-            alert('Failed to upload image. Please try again.');
-            throw error;
-        }
-    }
 
     private handleCancel(): void {
         this.config.onCancel();
