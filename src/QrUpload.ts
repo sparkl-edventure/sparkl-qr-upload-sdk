@@ -45,7 +45,6 @@ export interface QrUploadConfig {
     imageConfig?: ImageConfig;
     polling?: PollingCallbacks;
     onError?: (error: Error) => void;
-    onUploadComplete?: (response: any) => void;
     onImageAccept?: (file: File) => void;
     onImageReject?: () => void;
     logoUrl?: string | null;
@@ -406,26 +405,26 @@ export class QrUpload implements IQRUploadSDK {
         // helper to safely access nested keys, supports array indices
         const getNested = (obj: any, path: string): any => {
             return path.split(".").reduce((acc, part) => {
-            if (acc == null) return undefined;
+                if (acc == null) return undefined;
 
-            // detect if key is numeric -> use as array index
-            const index = Number(part);
-            if (!isNaN(index) && Array.isArray(acc)) {
-                return acc[index];
-            }
+                // detect if key is numeric -> use as array index
+                const index = Number(part);
+                if (!isNaN(index) && Array.isArray(acc)) {
+                    return acc[index];
+                }
 
-            return acc[part];
+                return acc[part];
             }, obj);
         };
 
         try {
             const response = await fetch(this.config.fetchApi.url, {
-            headers: this.config.fetchApi.headers,
-            method: "GET",
+                headers: this.config.fetchApi.headers,
+                method: "GET",
             });
 
             if (!response.ok) {
-            throw new Error(`Failed to fetch images: ${response.statusText}`);
+                throw new Error(`Failed to fetch images: ${response.statusText}`);
             }
 
             const data = await response.json();
@@ -435,7 +434,7 @@ export class QrUpload implements IQRUploadSDK {
             const items = getNested(data, keyPath);
 
             if (Array.isArray(items) && items.length > 0) {
-            this.config.polling?.onNewImages?.(items);
+                this.config.polling?.onNewImages?.(items);
             }
         } catch (error) {
             const err = error instanceof Error ? error : new Error(String(error));
@@ -505,7 +504,7 @@ export class QrUpload implements IQRUploadSDK {
         videoElement.playsInline = true;
         this.videoElement = videoElement;
         this.videoWrapper = videoWrapper;
-        
+
         videoWrapper.appendChild(videoElement);
 
         // Shutter button
@@ -840,27 +839,27 @@ export class QrUpload implements IQRUploadSDK {
         fileInput.setAttribute("capture", ""); // Opens full native camera app with all features
         fileInput.style.display = "none";
         fileInput.id = "qr-upload-native-input";
-        
+
         // Store reference for external trigger
         this.nativeCameraInput = fileInput;
 
         // Content area with title and description
         const contentArea = document.createElement("div");
         contentArea.className = "qr-upload__content-area";
-        
+
         const mainTitle = document.createElement("h2");
         mainTitle.className = "qr-upload__main-title";
         mainTitle.textContent = "Upload your Answer";
-        
+
         const description = document.createElement("p");
         description.className = "qr-upload__description";
         description.textContent = "Tap the camera below to capture";
-        
+
         contentArea.appendChild(mainTitle);
         contentArea.appendChild(description);
 
 
-        
+
 
 
         // Camera button container
@@ -871,16 +870,16 @@ export class QrUpload implements IQRUploadSDK {
 
         const blobEclipse1 = document.createElement('div');
         blobEclipse1.classList.add('blob-eclipse', 'blob-eclipse1');
-    
+
         const blobEclipse2 = document.createElement('div');
         blobEclipse2.classList.add('blob-eclipse', 'blob-eclipse2');
-    
+
         cameraContainer.appendChild(blobEclipse1);
         cameraContainer.appendChild(blobEclipse2);
 
         const cameraButton = document.createElement("button");
         cameraButton.className = "qr-upload__native-camera-btn";
-        
+
         // Create circular camera button design
         cameraButton.innerHTML = `
             <div class="qr-upload__camera-circle">
@@ -945,8 +944,8 @@ export class QrUpload implements IQRUploadSDK {
             previewOverlay.style.display = "flex";
             cameraContainer.style.display = "none";
 
-            // Store the current file for callbacks
-            const currentFile = file;
+            // Store the current file for callbacks - use object reference so it can be updated
+            const fileRef = { current: file };
 
             // Close button handler
             const closeBtn = previewOverlay.querySelector(".qr-upload__native-close-btn");
@@ -968,9 +967,9 @@ export class QrUpload implements IQRUploadSDK {
             const editHandler = () => {
                 // Hide preview
                 previewOverlay.style.display = "none";
-                
-                // Open image editor
-                this.openImageEditorWithUpload(currentFile, previewImg.src, cameraContainer, fileInput);
+
+                // Open image editor with current file
+                this.openImageEditor(fileRef.current, previewImg.src, cameraContainer, fileInput, fileRef);
             };
             editBtn?.addEventListener("click", editHandler);
 
@@ -979,35 +978,41 @@ export class QrUpload implements IQRUploadSDK {
             const tickHandler = async () => {
                 // Hide preview
                 previewOverlay.style.display = "none";
-                
-                // Call accept callback
+
+                // Call accept callback with current file
                 if (this.config.onImageAccept) {
-                    this.config.onImageAccept(currentFile);
+                    this.config.onImageAccept(fileRef.current);
                 }
 
                 // Upload directly without editing
                 try {
-                        const imageFile: ImageFile = {
-                            id: crypto.randomUUID(),
-                            previewUrl: previewImg.src,
-                            file: currentFile,
-                            status: "pending",
-                        };
+                    const imageFile: ImageFile = {
+                        id: crypto.randomUUID(),
+                        previewUrl: previewImg.src,
+                        file: fileRef.current,
+                        status: "pending",
+                    };
 
-                        this.images.push(imageFile);
+                    this.images.push(imageFile);
 
-                        // Upload if API is configured
-                        if (this.config.uploadApi?.url) {
-                            imageFile.status = "uploading";
-                            const response = await this.uploadImage(currentFile);
-                            imageFile.status = "uploaded";
+                    // Upload if API is configured
+                    if (this.config.uploadApi?.url) {
+                        imageFile.status = "uploading";
+                        const response = await this.uploadImage(fileRef.current);
+                        imageFile.status = "uploaded";
+                        console.log("Uploaded Image Response", response);
 
-                            if (this.config.onUploadComplete) {
-                                this.config.onUploadComplete(response);
+                        // Call API success callback if provided
+                        if (this.config?.uploadApi?.onUploadImageSuccess) {
+                            try {
+                                this.config.uploadApi.onUploadImageSuccess([fileRef.current]);
+                            } catch (error) {
+                                console.error('Error in onUploadImageSuccess callback:', error);
                             }
-
-                            this.showToast("Image uploaded successfully!", "success");
                         }
+
+                        this.showToast("Image uploaded successfully!", "success");
+                    }
 
                     // Reset UI
                     URL.revokeObjectURL(previewImg.src);
@@ -1055,51 +1060,49 @@ export class QrUpload implements IQRUploadSDK {
     /**
      * Open the image editor for rotating and cropping (for native camera with upload)
      */
-    private openImageEditorWithUpload(
+    private openImageEditor(
         file: File,
         previewUrl: string,
         cameraContainer: HTMLElement,
-        fileInput: HTMLInputElement
+        fileInput: HTMLInputElement,
+        fileRef?: { current: File }
     ): void {
         // Instantiate editor - it will show automatically after loading
         new QrImageEditor(file, {
-            uploadApi: this.config.uploadApi ? {
-                url: this.config.uploadApi.url,
-                method: this.config.uploadApi.method,
-                headers: this.config.uploadApi.headers,
-                body: this.config.uploadApi.body,
-                fileKey: this.config.uploadApi.fileKey,
-                responseKey: this.config.uploadApi.responseKey,
-                onUploadImageSuccess: (uploadedFiles: File[]) => {
-                    // Handle successful upload
-                    if (this.config.uploadApi?.onUploadImageSuccess) {
-                        this.config.uploadApi.onUploadImageSuccess(uploadedFiles);
-                    }
-                    if (this.config.onUploadComplete) {
-                        this.config.onUploadComplete({ files: uploadedFiles });
-                    }
-                    this.showToast("Image uploaded successfully!", "success");
-                }
-            } : undefined,
             onSave: async (editedFile: File) => {
                 try {
-                    const imageFile: ImageFile = {
-                        id: crypto.randomUUID(),
-                        previewUrl: URL.createObjectURL(editedFile),
-                        file: editedFile,
-                        status: "uploaded", // Set as uploaded since ImageEditor handles upload
-                    };
-
-                    this.images.push(imageFile);
-
-                    // Clean up and reset UI
+                    // Clean up old preview URL
                     URL.revokeObjectURL(previewUrl);
-                    cameraContainer.style.display = "flex";
-                    fileInput.value = "";
+
+                    // Create new preview URL for edited image
+                    const editedPreviewUrl = URL.createObjectURL(editedFile);
+
+                    // Update the file reference so existing handlers use the edited file
+                    if (fileRef) {
+                        fileRef.current = editedFile;
+                    }
+
+                    // Find the existing preview overlay and update it
+                    const previewOverlay = this.container?.querySelector(".qr-upload__native-preview-overlay") as HTMLElement;
+                    const previewImg = previewOverlay?.querySelector(".qr-upload__native-preview-img") as HTMLImageElement;
+
+                    if (previewOverlay && previewImg) {
+                        // Update the existing preview with edited image
+                        previewImg.src = editedPreviewUrl;
+                        previewOverlay.style.display = "flex";
+                        cameraContainer.style.display = "none";
+
+                        // The existing event handlers will now work with the edited file via fileRef.current
+                    } else {
+                        // Fallback: reset to camera if preview elements not found
+                        cameraContainer.style.display = "flex";
+                        fileInput.value = "";
+                    }
+
                 } catch (error) {
                     this.handleError(error instanceof Error ? error : new Error(String(error)));
                     this.showToast("Failed to process image", "error");
-                    
+
                     // Reset UI on error
                     URL.revokeObjectURL(previewUrl);
                     cameraContainer.style.display = "flex";
@@ -1111,7 +1114,7 @@ export class QrUpload implements IQRUploadSDK {
                 if (this.config.onImageReject) {
                     this.config.onImageReject();
                 }
-                
+
                 // Clean up and return to camera
                 URL.revokeObjectURL(previewUrl);
                 cameraContainer.style.display = "flex";
@@ -1119,9 +1122,10 @@ export class QrUpload implements IQRUploadSDK {
             },
             fileName: this.config.imageConfig?.fileName || `edited-${Date.now()}.jpg`
         });
-        
+
         // Editor will show automatically after loading the image
     }
+
 }
 
 // Export the initialization function
