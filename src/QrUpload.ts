@@ -947,8 +947,31 @@ export class QrUpload implements IQRUploadSDK {
             // Store the current file for callbacks - use object reference so it can be updated
             const fileRef = { current: file };
 
+            // Get buttons
+            const closeBtn = previewOverlay.querySelector(".qr-upload__native-close-btn") as HTMLButtonElement;
+            const editBtn = previewOverlay.querySelector(".qr-upload__native-edit-btn") as HTMLButtonElement;
+            const tickBtn = previewOverlay.querySelector(".qr-upload__native-tick-btn") as HTMLButtonElement;
+
+            // CRITICAL FIX: Clone and replace buttons to remove all old event listeners
+            if (closeBtn) {
+                const newCloseBtn = closeBtn.cloneNode(true) as HTMLButtonElement;
+                closeBtn.parentNode?.replaceChild(newCloseBtn, closeBtn);
+            }
+            if (editBtn) {
+                const newEditBtn = editBtn.cloneNode(true) as HTMLButtonElement;
+                editBtn.parentNode?.replaceChild(newEditBtn, editBtn);
+            }
+            if (tickBtn) {
+                const newTickBtn = tickBtn.cloneNode(true) as HTMLButtonElement;
+                tickBtn.parentNode?.replaceChild(newTickBtn, tickBtn);
+            }
+
+            // Re-query buttons after cloning
+            const cleanCloseBtn = previewOverlay.querySelector(".qr-upload__native-close-btn") as HTMLButtonElement;
+            const cleanEditBtn = previewOverlay.querySelector(".qr-upload__native-edit-btn") as HTMLButtonElement;
+            const cleanTickBtn = previewOverlay.querySelector(".qr-upload__native-tick-btn") as HTMLButtonElement;
+
             // Close button handler
-            const closeBtn = previewOverlay.querySelector(".qr-upload__native-close-btn");
             const closeHandler = () => {
                 URL.revokeObjectURL(previewImg.src);
                 previewOverlay.style.display = "none";
@@ -960,10 +983,9 @@ export class QrUpload implements IQRUploadSDK {
                     this.config.onImageReject();
                 }
             };
-            closeBtn?.addEventListener("click", closeHandler);
+            cleanCloseBtn?.addEventListener("click", closeHandler);
 
             // Edit button handler
-            const editBtn = previewOverlay.querySelector(".qr-upload__native-edit-btn");
             const editHandler = () => {
                 // Hide preview
                 previewOverlay.style.display = "none";
@@ -971,10 +993,9 @@ export class QrUpload implements IQRUploadSDK {
                 // Open image editor with current file
                 this.openImageEditor(fileRef.current, previewImg.src, cameraContainer, fileInput, fileRef);
             };
-            editBtn?.addEventListener("click", editHandler);
+            cleanEditBtn?.addEventListener("click", editHandler);
 
             // Tick button handler (Accept without editing)
-            const tickBtn = previewOverlay.querySelector(".qr-upload__native-tick-btn");
             const tickHandler = async () => {
                 // Hide preview
                 previewOverlay.style.display = "none";
@@ -1030,7 +1051,7 @@ export class QrUpload implements IQRUploadSDK {
                     fileInput.value = "";
                 }
             };
-            tickBtn?.addEventListener("click", tickHandler);
+            cleanTickBtn?.addEventListener("click", tickHandler);
         });
 
         // Append elements
