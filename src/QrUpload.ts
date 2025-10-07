@@ -947,90 +947,8 @@ export class QrUpload implements IQRUploadSDK {
             // Store the current file for callbacks - use object reference so it can be updated
             const fileRef = { current: file };
 
-            // Close button handler
-            const closeBtn = previewOverlay.querySelector(".qr-upload__native-close-btn");
-            const closeHandler = () => {
-                URL.revokeObjectURL(previewImg.src);
-                previewOverlay.style.display = "none";
-                cameraContainer.style.display = "flex";
-                fileInput.value = ""; // Reset input
-
-                // Call reject callback
-                if (this.config.onImageReject) {
-                    this.config.onImageReject();
-                }
-            };
-            closeBtn?.addEventListener("click", closeHandler);
-
-            // Edit button handler
-            const editBtn = previewOverlay.querySelector(".qr-upload__native-edit-btn");
-            const editHandler = () => {
-                // Hide preview
-                previewOverlay.style.display = "none";
-
-                // Open image editor with current file
-                this.openImageEditor(fileRef.current, previewImg.src, cameraContainer, fileInput, fileRef);
-            };
-            editBtn?.addEventListener("click", editHandler);
-
-            // Tick button handler (Accept without editing)
-            const tickBtn = previewOverlay.querySelector(".qr-upload__native-tick-btn");
-            const tickHandler = async () => {
-                // Hide preview
-                previewOverlay.style.display = "none";
-
-                // Call accept callback with current file
-                if (this.config.onImageAccept) {
-                    this.config.onImageAccept(fileRef.current);
-                }
-
-                // Upload directly without editing
-                try {
-                    const imageFile: ImageFile = {
-                        id: crypto.randomUUID(),
-                        previewUrl: previewImg.src,
-                        file: fileRef.current,
-                        status: "pending",
-                    };
-
-                    this.images.push(imageFile);
-
-                    // Upload if API is configured
-                    if (this.config.uploadApi?.url) {
-                        imageFile.status = "uploading";
-                        const response = await this.uploadImage(fileRef.current);
-                        imageFile.status = "uploaded";
-                        console.log("Uploaded Image Response", response);
-
-                        // Call API success callback if provided
-                        if (this.config?.uploadApi?.onUploadImageSuccess) {
-                            try {
-                                this.config.uploadApi.onUploadImageSuccess([fileRef.current]);
-                            } catch (error) {
-                                console.error('Error in onUploadImageSuccess callback:', error);
-                            }
-                        }
-
-                        this.showToast("Image uploaded successfully!", "success");
-                    }
-
-                    // Reset UI
-                    URL.revokeObjectURL(previewImg.src);
-                    cameraContainer.style.display = "flex";
-                    fileInput.value = ""; // Reset input
-
-                } catch (error) {
-                    this.handleError(error instanceof Error ? error : new Error(String(error)));
-                    this.showToast("Failed to process image", "error");
-
-                    // Reset UI on error
-                    URL.revokeObjectURL(previewImg.src);
-                    previewOverlay.style.display = "none";
-                    cameraContainer.style.display = "flex";
-                    fileInput.value = "";
-                }
-            };
-            tickBtn?.addEventListener("click", tickHandler);
+            // Setup all button handlers using DRY helper method
+            this.setupPreviewButtonHandlers(previewOverlay, fileRef, previewImg.src, cameraContainer, fileInput);
         });
 
         // Append elements
@@ -1055,6 +973,158 @@ export class QrUpload implements IQRUploadSDK {
         } else {
             throw new Error('Native camera input not initialized. Ensure you have mounted the SDK first.');
         }
+    }
+
+
+    /**
+     * Clone and replace preview buttons to remove all event listeners
+     */
+    private clonePreviewButtons(previewOverlay: HTMLElement): {
+        closeBtn: HTMLButtonElement | null;
+        editBtn: HTMLButtonElement | null;
+        tickBtn: HTMLButtonElement | null;
+    } {
+        // Get buttons before cloning
+        const oldCloseBtn = previewOverlay.querySelector(".qr-upload__native-close-btn") as HTMLButtonElement;
+        const oldEditBtn = previewOverlay.querySelector(".qr-upload__native-edit-btn") as HTMLButtonElement;
+        const oldTickBtn = previewOverlay.querySelector(".qr-upload__native-tick-btn") as HTMLButtonElement;
+
+        // Clone and replace to remove all old event listeners
+        if (oldCloseBtn) {
+            const newCloseBtn = oldCloseBtn.cloneNode(true) as HTMLButtonElement;
+            oldCloseBtn.parentNode?.replaceChild(newCloseBtn, oldCloseBtn);
+        }
+        if (oldEditBtn) {
+            const newEditBtn = oldEditBtn.cloneNode(true) as HTMLButtonElement;
+            oldEditBtn.parentNode?.replaceChild(newEditBtn, oldEditBtn);
+        }
+        if (oldTickBtn) {
+            const newTickBtn = oldTickBtn.cloneNode(true) as HTMLButtonElement;
+            oldTickBtn.parentNode?.replaceChild(newTickBtn, oldTickBtn);
+        }
+
+        // Re-query buttons after cloning
+        return {
+            closeBtn: previewOverlay.querySelector(".qr-upload__native-close-btn") as HTMLButtonElement,
+            editBtn: previewOverlay.querySelector(".qr-upload__native-edit-btn") as HTMLButtonElement,
+            tickBtn: previewOverlay.querySelector(".qr-upload__native-tick-btn") as HTMLButtonElement
+        };
+    }
+
+    /**
+     * Reset UI to camera view
+     */
+    private resetToCameraView(
+        previewUrl: string,
+        previewOverlay: HTMLElement,
+        cameraContainer: HTMLElement,
+        fileInput: HTMLInputElement
+    ): void {
+        URL.revokeObjectURL(previewUrl);
+        previewOverlay.style.display = "none";
+        cameraContainer.style.display = "flex";
+        fileInput.value = "";
+    }
+
+    /**
+     * Attach close button handler
+     */
+    private attachCloseHandler(
+        button: HTMLButtonElement | null,
+        previewUrl: string,
+        previewOverlay: HTMLElement,
+        cameraContainer: HTMLElement,
+        fileInput: HTMLInputElement
+    ): void {
+        button?.addEventListener("click", () => {
+            this.resetToCameraView(previewUrl, previewOverlay, cameraContainer, fileInput);
+            this.config.onImageReject?.();
+        });
+    }
+
+    /**
+     * Attach edit button handler
+     */
+    private attachEditHandler(
+        button: HTMLButtonElement | null,
+        fileRef: { current: File } | undefined,
+        previewUrl: string,
+        previewOverlay: HTMLElement,
+        cameraContainer: HTMLElement,
+        fileInput: HTMLInputElement
+    ): void {
+        button?.addEventListener("click", () => {
+            if (!fileRef) return;
+            previewOverlay.style.display = "none";
+            this.openImageEditor(fileRef.current, previewUrl, cameraContainer, fileInput, fileRef);
+        });
+    }
+
+    /**
+     * Attach tick button handler (upload)
+     */
+    private attachTickHandler(
+        button: HTMLButtonElement | null,
+        fileRef: { current: File } | undefined,
+        previewUrl: string,
+        previewOverlay: HTMLElement,
+        cameraContainer: HTMLElement,
+        fileInput: HTMLInputElement
+    ): void {
+        button?.addEventListener("click", async () => {
+            if (!fileRef) return;
+
+            previewOverlay.style.display = "none";
+            this.config.onImageAccept?.(fileRef.current);
+
+            try {
+                const imageFile: ImageFile = {
+                    id: crypto.randomUUID(),
+                    previewUrl: previewUrl,
+                    file: fileRef.current,
+                    status: "pending",
+                };
+
+                this.images.push(imageFile);
+
+                if (this.config.uploadApi?.url) {
+                    imageFile.status = "uploading";
+                    const response = await this.uploadImage(fileRef.current);
+                    imageFile.status = "uploaded";
+                    console.log("Uploaded Image Response", response);
+
+                    this.config?.uploadApi?.onUploadImageSuccess?.([fileRef.current]);
+                    this.showToast("Image uploaded successfully!", "success");
+                }
+
+                // Reset UI
+                this.resetToCameraView(previewUrl, previewOverlay, cameraContainer, fileInput);
+
+            } catch (error) {
+                this.handleError(error instanceof Error ? error : new Error(String(error)));
+                this.showToast("Failed to process image", "error");
+                this.resetToCameraView(previewUrl, previewOverlay, cameraContainer, fileInput);
+            }
+        });
+    }
+
+    /**
+     * Setup all preview button handlers
+     */
+    private setupPreviewButtonHandlers(
+        previewOverlay: HTMLElement,
+        fileRef: { current: File },
+        previewUrl: string,
+        cameraContainer: HTMLElement,
+        fileInput: HTMLInputElement
+    ): void {
+        // Clone buttons to remove old listeners
+        const { closeBtn, editBtn, tickBtn } = this.clonePreviewButtons(previewOverlay);
+
+        // Attach handlers
+        this.attachCloseHandler(closeBtn, previewUrl, previewOverlay, cameraContainer, fileInput);
+        this.attachEditHandler(editBtn, fileRef, previewUrl, previewOverlay, cameraContainer, fileInput);
+        this.attachTickHandler(tickBtn, fileRef, previewUrl, previewOverlay, cameraContainer, fileInput);
     }
 
     /**
@@ -1086,39 +1156,34 @@ export class QrUpload implements IQRUploadSDK {
                     const previewOverlay = this.container?.querySelector(".qr-upload__native-preview-overlay") as HTMLElement;
                     const previewImg = previewOverlay?.querySelector(".qr-upload__native-preview-img") as HTMLImageElement;
 
-                    if (previewOverlay && previewImg) {
+                    if (previewOverlay && previewImg && fileRef) {
                         // Update the existing preview with edited image
                         previewImg.src = editedPreviewUrl;
                         previewOverlay.style.display = "flex";
                         cameraContainer.style.display = "none";
 
-                        // The existing event handlers will now work with the edited file via fileRef.current
+                        // Setup all button handlers using DRY helper method
+                        this.setupPreviewButtonHandlers(previewOverlay, fileRef, editedPreviewUrl, cameraContainer, fileInput);
+
                     } else {
                         // Fallback: reset to camera if preview elements not found
-                        cameraContainer.style.display = "flex";
-                        fileInput.value = "";
+                        this.resetToCameraView(editedPreviewUrl, previewOverlay || document.createElement('div'), cameraContainer, fileInput);
                     }
 
                 } catch (error) {
                     this.handleError(error instanceof Error ? error : new Error(String(error)));
                     this.showToast("Failed to process image", "error");
-
-                    // Reset UI on error
-                    URL.revokeObjectURL(previewUrl);
-                    cameraContainer.style.display = "flex";
-                    fileInput.value = "";
+                    
+                    // Reset UI on error using helper
+                    const dummyOverlay = document.createElement('div');
+                    this.resetToCameraView(previewUrl, dummyOverlay, cameraContainer, fileInput);
                 }
             },
             onCancel: () => {
-                // Call reject callback if provided
-                if (this.config.onImageReject) {
-                    this.config.onImageReject();
-                }
-
-                // Clean up and return to camera
-                URL.revokeObjectURL(previewUrl);
-                cameraContainer.style.display = "flex";
-                fileInput.value = "";
+                // Call reject callback and reset to camera using helper
+                this.config.onImageReject?.();
+                const dummyOverlay = document.createElement('div');
+                this.resetToCameraView(previewUrl, dummyOverlay, cameraContainer, fileInput);
             },
             fileName: this.config.imageConfig?.fileName || `edited-${Date.now()}.jpg`
         });
