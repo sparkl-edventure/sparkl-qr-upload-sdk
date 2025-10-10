@@ -3,6 +3,7 @@ import { generateQrCode, generateQrUrl, generateSessionId } from './utils/qr';
 import { QrImageEditor } from './utils/ImageEditor';
 import Sortable from "sortablejs";
 import cameraStar from './../assets/img/camera_star.png';
+import cloudUpload from './../assets/img/cloud-upload.svg';
 
 // Core types
 export interface ImageFile {
@@ -266,7 +267,7 @@ export class QrUpload implements IQRUploadSDK {
         });
     }
 
-    async uploadImage(file: File): Promise<any> {
+    async uploadImage(file: File, onProgress?: (progress: number) => void): Promise<any> {
         this.ensureInitialized();
         if (!this.config.uploadApi?.url) {
             throw new Error("Upload API URL not configured");
@@ -300,27 +301,55 @@ export class QrUpload implements IQRUploadSDK {
             }
         });
 
-        // Debugging: check what’s actually being sent
+        // Debugging: check what's actually being sent
         formData.forEach((v, k) => console.log("FormData →", k, v));
 
-        // ⚠️ Don’t override Content-Type (fetch will handle boundary)
+        // ⚠️ Don't override Content-Type (fetch will handle boundary)
         const { ["Content-Type"]: _, ...safeHeaders } = headers;
 
-        const response = await fetch(url, {
-            method,
-            headers: safeHeaders,
-            body: formData,
+        // Use XMLHttpRequest for progress tracking
+        return new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+
+            // Track upload progress
+            xhr.upload.addEventListener('progress', (event) => {
+                if (event.lengthComputable) {
+                    const progress = Math.round((event.loaded / event.total) * 100);
+                    onProgress?.(progress);
+                }
+            });
+
+            xhr.addEventListener('load', () => {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        resolve(response);
+                    } catch (error) {
+                        resolve(xhr.responseText);
+                    }
+                } else {
+                    reject(new Error(`Upload failed: ${xhr.status} ${xhr.statusText}`));
+                }
+            });
+
+            xhr.addEventListener('error', () => {
+                reject(new Error('Upload failed: Network error'));
+            });
+
+            xhr.addEventListener('timeout', () => {
+                reject(new Error('Upload failed: Request timeout'));
+            });
+
+            xhr.open(method, url);
+
+            // Set headers
+            Object.entries(safeHeaders).forEach(([key, value]) => {
+                xhr.setRequestHeader(key, value);
+            });
+
+            xhr.send(formData);
         });
-
-        if (!response.ok) {
-            throw new Error(`Upload failed: ${response.status} ${response.statusText}`);
-        }
-
-        return response.json();
     }
-
-
-
 
     async generateQrCode(options?: QRCodeGenerationOptions): Promise<string> {
         this.ensureInitialized();
@@ -567,12 +596,7 @@ export class QrUpload implements IQRUploadSDK {
         // 🔹 Upload button handler
         const uploadBtn = previewOverlay.querySelector(".qr-upload__btn") as HTMLButtonElement;
         uploadBtn?.addEventListener("click", async () => {
-            for (const img of this.images) {
-                if (img.status === "pending" || img.status === "error") {
-                    await this.uploadImage(img.file);
-                }
-            }
-            this.renderPreviews();
+            await this.submitImages();
         });
     }
 
@@ -586,24 +610,165 @@ export class QrUpload implements IQRUploadSDK {
         setTimeout(() => toast.remove(), 3000);
     }
 
+    /**
+     * Show upload loader overlay with progress tracking
+     */
+    private showUploadLoader(): {
+        updateProgress: (progress: number) => void;
+        hide: () => void;
+    } {
+        // Create overlay
+        const overlay = document.createElement('div');
+        overlay.className = 'qr-upload__upload-overlay';
+        
+        // Create container
+        const container = document.createElement('div');
+        container.className = 'qr-upload__upload-container';
+        
+        // Create upload icon with SVG
+        const icon = document.createElement('div');
+        icon.className = 'qr-upload__upload-icon';
+        const iconImg = document.createElement('img');
+        iconImg.src = cloudUpload;
+        iconImg.alt = 'Upload';
+        iconImg.style.filter = 'brightness(0) invert(1)'; 
+        icon.appendChild(iconImg);
+        
+        // Create title
+        const title = document.createElement('h2');
+        title.className = 'qr-upload__upload-title';
+        title.textContent = 'Uploading Document';
+        
+        // Create message
+        const message = document.createElement('p');
+        message.className = 'qr-upload__upload-message';
+        message.textContent = 'Please wait while your document is being uploaded...';
+        
+        // Create progress container
+        const progressContainer = document.createElement('div');
+        progressContainer.className = 'qr-upload__progress-container';
+        
+        // Create progress bar wrapper
+        const progressWrapper = document.createElement('div');
+        progressWrapper.className = 'qr-upload__progress-bar-wrapper';
+        
+        // Create progress bar
+        const progressBar = document.createElement('div');
+        progressBar.className = 'qr-upload__progress-bar';
+        progressBar.style.width = '0%';
+        
+        // Create progress text
+        const progressText = document.createElement('div');
+        progressText.className = 'qr-upload__progress-text';
+        progressText.innerHTML = `
+            <span class="qr-upload__progress-percentage">0%</span>
+            <span class="qr-upload__progress-eta">Calculating time...</span>
+        `;
+        
+        // Assemble elements
+        progressWrapper.appendChild(progressBar);
+        progressContainer.appendChild(progressWrapper);
+        progressContainer.appendChild(progressText);
+        
+        container.appendChild(icon);
+        container.appendChild(title);
+        container.appendChild(message);
+        container.appendChild(progressContainer);
+        
+        overlay.appendChild(container);
+        document.body.appendChild(overlay);
+        
+        // Track upload start time for ETA calculation
+        const startTime = Date.now();
+        
+        return {
+            updateProgress: (progress: number) => {
+                progressBar.style.width = `${progress}%`;
+                
+                const percentageEl = progressText.querySelector('.qr-upload__progress-percentage');
+                const etaEl = progressText.querySelector('.qr-upload__progress-eta');
+                
+                if (percentageEl) {
+                    percentageEl.textContent = `${progress}%`;
+                }
+                
+                if (etaEl && progress > 0) {
+                    const elapsed = Date.now() - startTime;
+                    const estimatedTotal = (elapsed / progress) * 100;
+                    const remaining = estimatedTotal - elapsed;
+                    
+                    if (remaining > 1000) {
+                        const seconds = Math.ceil(remaining / 1000);
+                        if (seconds < 60) {
+                            etaEl.textContent = `${seconds} seconds remaining`;
+                        } else {
+                            const minutes = Math.ceil(seconds / 60);
+                            etaEl.textContent = `${minutes} minute${minutes > 1 ? 's' : ''} remaining`;
+                        }
+                    } else {
+                        etaEl.textContent = 'Almost done...';
+                    }
+                }
+            },
+            
+            hide: () => {
+                overlay.remove();
+            }
+        };
+    }
+
 
 
 
     private async submitImages(): Promise<void> {
         const uploadedFiles: File[] = [];
+        const pendingImages = this.images.filter(img => img.status === "pending" || img.status === "error");
+        
+        if (pendingImages.length === 0) {
+            this.showToast("No images to upload", "error");
+            return;
+        }
+
+        // Define callbacks
+        const onSuccess = () => {
+            loader.hide();
+            const message = pendingImages.length === 1 
+                ? "Document uploaded successfully!" 
+                : `${pendingImages.length} documents uploaded successfully!`;
+            this.showToast(message, "success");
+        };
+        
+        const onError = (errorMessage: string) => {
+            loader.hide();
+            this.showToast(errorMessage, "error");
+        };
+        
+        // Show upload loader for batch upload
+        const loader = this.showUploadLoader();
+        let completedUploads = 0;
 
         try {
             // Process all pending/error images
-            for (const img of this.images) {
-                if (img.status === "pending" || img.status === "error") {
-                    try {
-                        await this.uploadImage(img.file);
-                        img.status = "uploaded";
-                        uploadedFiles.push(img.file);
-                    } catch (err) {
-                        img.status = "error";
-                        this.handleError(err instanceof Error ? err : new Error(String(err)));
-                    }
+            for (const img of pendingImages) {
+                try {
+                    await this.uploadImage(img.file, (progress) => {
+                        // Calculate overall progress across all files
+                        const fileProgress = progress / pendingImages.length;
+                        const overallProgress = (completedUploads / pendingImages.length) * 100 + fileProgress;
+                        loader.updateProgress(Math.min(100, Math.round(overallProgress)));
+                    });
+                    
+                    img.status = "uploaded";
+                    uploadedFiles.push(img.file);
+                    completedUploads++;
+                    
+                    // Update progress after each file completion
+                    const overallProgress = (completedUploads / pendingImages.length) * 100;
+                    loader.updateProgress(Math.round(overallProgress));
+                    
+                } catch (err) {
+                    img.status = "error";
+                    this.handleError(err instanceof Error ? err : new Error(String(err)));
                 }
             }
 
@@ -622,11 +787,17 @@ export class QrUpload implements IQRUploadSDK {
                 this.images = this.images.filter(img => img.status !== "uploaded");
                 this.renderPreviews();
 
-
+                // Trigger success callback
+                onSuccess();
+            } else {
+                // Trigger error callback
+                onError("All uploads failed. Please try again.");
             }
         } catch (error) {
             console.error('Error in submitImages:', error);
             this.handleError(error instanceof Error ? error : new Error(String(error)));
+            // Trigger error callback
+            onError("Upload failed. Please try again.");
         }
     }
 
@@ -1089,12 +1260,41 @@ export class QrUpload implements IQRUploadSDK {
 
                 if (this.config.uploadApi?.url) {
                     imageFile.status = "uploading";
-                    const response = await this.uploadImage(fileRef.current);
-                    imageFile.status = "uploaded";
-                    console.log("Uploaded Image Response", response);
+                    
+                    // Define callbacks
+                    const onSuccess = () => {
+                        loader.hide();
+                        this.showToast("Image uploaded successfully!", "success");
+                    };
+                    
+                    const onError = (errorMessage: string) => {
+                        loader.hide();
+                        this.showToast(`Upload failed: ${errorMessage}`, "error");
+                    };
+                    
+                    // Show upload loader with progress tracking
+                    const loader = this.showUploadLoader();
+                    
+                    try {
+                        const response = await this.uploadImage(fileRef.current, (progress) => {
+                            loader.updateProgress(progress);
+                        });
+                        
+                        imageFile.status = "uploaded";
+                        console.log("Uploaded Image Response", response);
 
-                    this.config?.uploadApi?.onUploadImageSuccess?.([fileRef.current]);
-                    this.showToast("Image uploaded successfully!", "success");
+                        this.config?.uploadApi?.onUploadImageSuccess?.([fileRef.current]);
+                        
+                        // Trigger success callback
+                        onSuccess();
+                        
+                    } catch (uploadError) {
+                        imageFile.status = "error";
+                        const errorMessage = uploadError instanceof Error ? uploadError.message : 'Upload failed';
+                        // Trigger error callback
+                        onError(`Upload failed: ${errorMessage}`);
+                        throw uploadError; // Re-throw to be handled by outer catch
+                    }
                 }
 
                 // Reset UI
