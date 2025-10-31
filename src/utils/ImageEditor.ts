@@ -100,15 +100,12 @@ export class QrImageEditor {
         if (shouldRender) this.render();
     }
 
-    /**
-     * Toggle flip state
-     */
-    private toggleFlip(type: 'horizontal' | 'vertical'): void {
-        const updates = type === 'horizontal'
-            ? { flipX: !this.state.flipX }
-            : { flipY: !this.state.flipY };
-        this.updateState(updates, true, true);
-    }
+    // private toggleFlip(type: 'horizontal' | 'vertical'): void {
+    //     const updates = type === 'horizontal'
+    //         ? { flipX: !this.state.flipX }
+    //         : { flipY: !this.state.flipY };
+    //     this.updateState(updates, true, true);
+    // }
 
     /**
      * Reset crop to full image
@@ -242,7 +239,7 @@ export class QrImageEditor {
                             </svg>
                             
                         </button>
-                        <button class="qr-editor-tab qr-flip-toggle-tab" data-flip="horizontal" title="Horizontal Flip">
+                       <!-- <button class="qr-editor-tab qr-flip-toggle-tab" data-flip="horizontal" title="Horizontal Flip">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M12 3v18"/>
                                 <path d="M5 7l7-4v18l-7-4z"/>
@@ -257,7 +254,7 @@ export class QrImageEditor {
                                 <path d="M17 19l-4-7h8l-4 7z"/>
                             </svg>
                             
-                        </button>
+                        </button> -->
                     </div>
                     <div class="qr-editor-tab-content" data-content="rotation" style="display: none;">
                         <div class="qr-slider-wrapper">
@@ -335,18 +332,18 @@ export class QrImageEditor {
         });
         
         // Flip toggle tabs
-        const flipTabs = this.getElements('.qr-flip-toggle-tab');
-        flipTabs?.forEach(tab => {
-            this.addListener(tab, 'click', (e) => {
-                const element = e.currentTarget as HTMLElement;
-                const flipType = element.dataset.flip as 'horizontal' | 'vertical';
-                
-                if (flipType) {
-                    this.toggleFlip(flipType);
-                    element.classList.toggle('active', flipType === 'horizontal' ? this.state.flipX : this.state.flipY);
-                }
-            });
-        });
+        // const flipTabs = this.getElements('.qr-flip-toggle-tab');
+        // flipTabs?.forEach(tab => {
+        //     this.addListener(tab, 'click', (e) => {
+        //         const element = e.currentTarget as HTMLElement;
+        //         const flipType = element.dataset.flip as 'horizontal' | 'vertical';
+        //         
+        //         if (flipType) {
+        //             this.toggleFlip(flipType);
+        //             element.classList.toggle('active', flipType === 'horizontal' ? this.state.flipX : this.state.flipY);
+        //         }
+        //     });
+        // });
         
         // Crop buttons
         this.addListener(this.getElement('.qr-reset-crop-btn'), 'click', () => this.resetCrop());
@@ -713,12 +710,12 @@ export class QrImageEditor {
             case 'reset':
                 this.resetAll();
                 break;
-            case 'flip-h':
-                this.toggleFlip('horizontal');
-                break;
-            case 'flip-v':
-                this.toggleFlip('vertical');
-                break;
+            // case 'flip-h':
+            //     this.toggleFlip('horizontal');
+            //     break;
+            // case 'flip-v':
+            //     this.toggleFlip('vertical');
+            //     break;
         }
     }
 
@@ -840,16 +837,16 @@ export class QrImageEditor {
         }
         
         // Update flip toggle tabs
-        const flipTabs = this.getElements('.qr-flip-toggle-tab');
-        flipTabs?.forEach(tab => {
-            const element = tab as HTMLElement;
-            const flipType = element.dataset.flip;
-            
-            element.classList.toggle('active', 
-                flipType === 'horizontal' ? this.state.flipX : 
-                flipType === 'vertical' ? this.state.flipY : false
-            );
-        });
+        // const flipTabs = this.getElements('.qr-flip-toggle-tab');
+        // flipTabs?.forEach(tab => {
+        //     const element = tab as HTMLElement;
+        //     const flipType = element.dataset.flip;
+        //     
+        //     element.classList.toggle('active', 
+        //         flipType === 'horizontal' ? this.state.flipX : 
+        //         flipType === 'vertical' ? this.state.flipY : false
+        //     );
+        // });
         
         // Update crop overlay position if in crop mode
         if (this.cropMode) {
@@ -936,8 +933,8 @@ export class QrImageEditor {
         
         // Apply flip
         this.ctx.scale(
-            this.state.flipX ? -1 : 1,
-            this.state.flipY ? -1 : 1
+            1, // this.state.flipX ? -1 : 1,
+            1  // this.state.flipY ? -1 : 1
         );
         
         // Draw image centered
@@ -1097,8 +1094,8 @@ export class QrImageEditor {
             
             // Apply flip only (no scale)
             finalCtx.scale(
-                this.state.flipX ? -1 : 1,
-                this.state.flipY ? -1 : 1
+                1, // this.state.flipX ? -1 : 1,
+                1  // this.state.flipY ? -1 : 1
             );
             
             // Draw cropped region
