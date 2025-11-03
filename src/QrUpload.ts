@@ -246,13 +246,19 @@ export class QrUpload implements IQRUploadSDK {
         }
 
         const canvas = document.createElement('canvas');
-
-        canvas.width = 600;
+        
+        // Fixed width of 600px, height calculated by aspect ratio
+        const FIXED_WIDTH = 600;
         const aspectRatio = this.videoElement.videoWidth / this.videoElement.videoHeight;
-        canvas.height = canvas.width / aspectRatio;
-        console.log('canvas.width', canvas.width);
-        console.log('canvas.height', canvas.height);
-        console.log('aspectRatio', aspectRatio);
+        
+        canvas.width = FIXED_WIDTH;
+        canvas.height = Math.round(FIXED_WIDTH / aspectRatio);
+        
+        console.log('Capture dimensions:', {
+            video: { width: this.videoElement.videoWidth, height: this.videoElement.videoHeight },
+            canvas: { width: canvas.width, height: canvas.height },
+            aspectRatio
+        });
 
         const ctx = canvas.getContext('2d');
 
@@ -262,14 +268,18 @@ export class QrUpload implements IQRUploadSDK {
 
         ctx.drawImage(this.videoElement, 0, 0, canvas.width, canvas.height);
 
+        // Fixed quality of 0.85 (85%)
+        const quality = 0.85;
+        
         return new Promise((resolve, reject) => {
             canvas.toBlob(blob => {
                 if (!blob) {
                     reject(new Error('Failed to capture image'));
                     return;
                 }
+                console.log(`Captured image: ${(blob.size / 1024 / 1024).toFixed(2)} MB with quality ${quality}`);
                 resolve(blob);
-            }, 'image/jpeg', 0.9);
+            }, 'image/jpeg', quality);
         });
     }
 

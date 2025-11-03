@@ -1076,9 +1076,24 @@ export class QrImageEditor {
             // Additional quality settings for better rendering
             finalCtx.globalCompositeOperation = 'source-over';
             
-            // Set output dimensions based on crop area only
-            const outputWidth = Math.round(this.state.cropWidth);
-            const outputHeight = Math.round(this.state.cropHeight);
+            // Fixed output width of 600px, height calculated by aspect ratio
+            const FIXED_WIDTH = 600;
+            const aspectRatio = this.state.cropWidth / this.state.cropHeight;
+            
+            let outputWidth = FIXED_WIDTH;
+            let outputHeight = Math.round(FIXED_WIDTH / aspectRatio);
+            
+            // Only apply reduction if original is larger than 600px
+            if (this.state.cropWidth <= FIXED_WIDTH) {
+                outputWidth = Math.round(this.state.cropWidth);
+                outputHeight = Math.round(this.state.cropHeight);
+            }
+            
+            console.log('Resolution reduction applied:', {
+                original: { width: this.state.cropWidth, height: this.state.cropHeight },
+                output: { width: outputWidth, height: outputHeight },
+                reduction: `${Math.round((1 - (outputWidth * outputHeight) / (this.state.cropWidth * this.state.cropHeight)) * 100)}%`
+            });
             
             finalCanvas.width = outputWidth;
             finalCanvas.height = outputHeight;
@@ -1098,48 +1113,43 @@ export class QrImageEditor {
                 1  // this.state.flipY ? -1 : 1
             );
             
-            // Draw cropped region
+            // Draw cropped region scaled to output dimensions
             finalCtx.drawImage(
                 this.image,
                 this.state.cropX,
                 this.state.cropY,
                 this.state.cropWidth,
                 this.state.cropHeight,
-                -this.state.cropWidth / 2,
-                -this.state.cropHeight / 2,
-                this.state.cropWidth,
-                this.state.cropHeight
+                -outputWidth / 2,
+                -outputHeight / 2,
+                outputWidth,
+                outputHeight
             );
             
             finalCtx.restore();
             
-            // Convert to blob - use PNG for lossless quality, fallback to high-quality JPEG
+            // Fixed quality of 0.85 (85%) for good balance between quality and file size
+            const outputQuality = 0.85;
+            
+            // Convert to blob - use JPEG with fixed quality for smaller file size
             const blob = await new Promise<Blob>((resolve, reject) => {
-                // Try PNG first for lossless quality
                 finalCanvas.toBlob(
                     (b) => {
                         if (b) {
+                            console.log(`Image compressed to ${(b.size / 1024 / 1024).toFixed(2)} MB with quality ${outputQuality}`);
                             resolve(b);
                         } else {
-                            // Fallback to high-quality JPEG
-                            finalCanvas.toBlob(
-                                (jpegBlob) => {
-                                    if (jpegBlob) resolve(jpegBlob);
-                                    else reject(new Error('Failed to create blob'));
-                                },
-                                'image/jpeg',
-                                1.0  // Maximum quality
-                            );
+                            reject(new Error('Failed to create blob'));
                         }
                     },
-                    'image/png'  // Use PNG for lossless quality
+                    'image/jpeg',
+                    outputQuality
                 );
             });
             
-            // Create file with appropriate extension
-            const isPng = blob.type === 'image/png';
-            const fileName = this.config.fileName || `edited-${Date.now()}.${isPng ? 'png' : 'jpg'}`;
-            const file = new File([blob], fileName, { type: blob.type });
+            // Create file with JPEG extension
+            const fileName = this.config.fileName || `edited-${Date.now()}.jpg`;
+            const file = new File([blob], fileName, { type: 'image/jpeg' });
             
             // Always call save callback without uploading
             // Upload will be handled later by the parent component
