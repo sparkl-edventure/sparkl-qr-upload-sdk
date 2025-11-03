@@ -246,8 +246,14 @@ export class QrUpload implements IQRUploadSDK {
         }
 
         const canvas = document.createElement('canvas');
-        canvas.width = this.videoElement.videoWidth;
-        canvas.height = this.videoElement.videoHeight;
+
+        canvas.width = 600;
+        const aspectRatio = this.videoElement.videoWidth / this.videoElement.videoHeight;
+        canvas.height = canvas.width / aspectRatio;
+        console.log('canvas.width', canvas.width);
+        console.log('canvas.height', canvas.height);
+        console.log('aspectRatio', aspectRatio);
+
         const ctx = canvas.getContext('2d');
 
         if (!ctx) {
