@@ -865,7 +865,7 @@ export class QrImageEditor {
         // Get container dimensions with fallback to viewport
         const containerElement = this.canvas.parentElement;
         const containerWidth = containerElement?.clientWidth || viewportWidth;
-        const containerHeight = containerElement?.clientHeight || (viewportHeight * 0.75); // Increased height allocation
+        const containerHeight = containerElement?.clientHeight || (viewportHeight * 0.8); // Better height allocation for iOS
         
         console.log('Container dimensions:', containerWidth, 'x', containerHeight);
         console.log('Image dimensions:', this.image.width, 'x', this.image.height);
@@ -877,14 +877,14 @@ export class QrImageEditor {
         let displayWidth: number;
         let displayHeight: number;
         
-        // Fill container more completely for better visibility
+        // Fill container completely for consistent look across devices
         if (imgRatio > containerRatio) {
-            // Image is wider - fit to width
-            displayWidth = containerWidth * 0.95; // Increased from 0.98 to 0.95 for better fit
+            // Image is wider - fit to width and fill completely
+            displayWidth = containerWidth;
             displayHeight = displayWidth / imgRatio;
         } else {
-            // Image is taller - fit to height  
-            displayHeight = containerHeight * 0.95; // Increased from 0.98 to 0.95 for better fit
+            // Image is taller - fit to height and fill completely
+            displayHeight = containerHeight;
             displayWidth = displayHeight * imgRatio;
         }
         
