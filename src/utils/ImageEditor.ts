@@ -862,15 +862,23 @@ export class QrImageEditor {
         const viewportWidth = window.innerWidth;
         const viewportHeight = window.innerHeight;
         
-        // Get container dimensions with fallback to viewport
+        // Get container dimensions with aggressive fallbacks
         const containerElement = this.canvas.parentElement;
-        const containerWidth = containerElement?.clientWidth || viewportWidth;
-        const containerHeight = containerElement?.clientHeight || (viewportHeight * 0.8); // Better height allocation for iOS
+        let containerWidth = containerElement?.clientWidth || 0;
+        let containerHeight = containerElement?.clientHeight || 0;
+        
+        // If container hasn't rendered yet, use aggressive viewport-based defaults
+        if (containerWidth === 0 || containerHeight === 0) {
+            containerWidth = viewportWidth;
+            // On mobile, allocate 75% of viewport height for canvas (rest for controls/header)
+            containerHeight = viewportHeight * 0.75;
+        }
         
         console.log('Container dimensions:', containerWidth, 'x', containerHeight);
         console.log('Image dimensions:', this.image.width, 'x', this.image.height);
+        console.log('Viewport dimensions:', viewportWidth, 'x', viewportHeight);
         
-        // Calculate display dimensions to fill mobile screen
+        // Calculate display dimensions to fill container completely
         const imgRatio = this.image.width / this.image.height;
         const containerRatio = containerWidth / containerHeight;
         
@@ -889,6 +897,7 @@ export class QrImageEditor {
         }
         
         console.log('Display dimensions:', displayWidth, 'x', displayHeight);
+        console.log('Image scale:', displayWidth / this.image.width);
         
         // Store fixed dimensions
         this.fixedCanvasWidth = displayWidth;
