@@ -45,15 +45,15 @@ export class QrImageEditor {
         cropWidth: 0,
         cropHeight: 0
     };
-    
+
     // History for undo/redo
     private history: EditorState[] = [];
     private historyIndex: number = -1;
-    
+
     // Crop mode
     private cropMode: boolean = false;
     private cropOverlay: HTMLElement | null = null;
-    
+
     // Canvas dimensions for proper scaling
     private imageScale: number = 1;
     private fixedCanvasWidth: number = 0;
@@ -65,7 +65,7 @@ export class QrImageEditor {
     }
 
     // ===== DRY OPTIMIZATION METHODS =====
-    
+
     /**
      * Get element from overlay with null check
      */
@@ -124,32 +124,27 @@ export class QrImageEditor {
 
     private async openEditor(file: File): Promise<void> {
         try {
-            // Load image
             this.image = await this.loadImage(file);
-            
-            // Store original image for reset functionality
             this.originalImage = this.image;
-            
-            // Initialize crop dimensions to match displayed image size (not original)
-            // This will be set after canvas size calculation
             this.state.cropX = 0;
             this.state.cropY = 0;
-            
-            // Save initial state
             this.saveState();
-            
-            // Initialize crop mode as active by default (must be set BEFORE createEditorUI)
             this.cropMode = true;
-            
-            // Create UI (setupCropHandlers will now see cropMode = true)
             this.createEditorUI();
-            
-            // Calculate fixed canvas size once based on original image (after canvas is created)
+
+            // Initial calculation
             this.calculateFixedCanvasSize();
-            
-            // Render image first
             this.render();
-            
+
+            // Recalculate after UI settles (important for mobile)
+            setTimeout(() => {
+                this.calculateFixedCanvasSize();
+                this.render();
+                if (this.cropMode) {
+                    this.updateCropOverlay();
+                }
+            }, 100);
+
         } catch (error) {
             console.error('Failed to load image:', error);
             alert('Failed to load image. Please try again.');
@@ -170,7 +165,7 @@ export class QrImageEditor {
         // Create overlay
         this.overlay = document.createElement('div');
         this.overlay.className = 'qr-image-editor-overlay';
-        
+
         this.overlay.innerHTML = `
             <div class="qr-image-editor-container">
                 <!-- Header -->
@@ -288,9 +283,9 @@ export class QrImageEditor {
                 </div>
             </div>
         `;
-        
+
         document.body.appendChild(this.overlay);
-        
+
         // Get canvas
         this.canvas = this.overlay.querySelector('.qr-editor-canvas');
         if (this.canvas) {
@@ -301,18 +296,18 @@ export class QrImageEditor {
                 this.ctx.imageSmoothingQuality = 'high';
             }
         }
-        
+
         // Attach event listeners
         this.attachEventListeners();
     }
 
     private attachEventListeners(): void {
         if (!this.overlay) return;
-        
+
         // Close and save buttons
         this.addListener(this.getElement('.qr-editor-btn-close'), 'click', () => this.handleCancel());
         this.addListener(this.getElement('.qr-editor-btn-save'), 'click', () => this.handleSave());
-        
+
         // Tool buttons (undo/redo)
         const toolButtons = this.getElements('.qr-editor-tool-btn');
         toolButtons?.forEach(btn => {
@@ -321,7 +316,7 @@ export class QrImageEditor {
                 if (action) this.handleToolAction(action);
             });
         });
-        
+
         // Tabs (Rotation and Crop)
         const tabs = this.getElements('.qr-editor-tab:not(.qr-flip-toggle-tab)');
         tabs?.forEach(tab => {
@@ -330,7 +325,7 @@ export class QrImageEditor {
                 if (tabName) this.switchTab(tabName);
             });
         });
-        
+
         // Flip toggle tabs
         // const flipTabs = this.getElements('.qr-flip-toggle-tab');
         // flipTabs?.forEach(tab => {
@@ -344,11 +339,11 @@ export class QrImageEditor {
         //         }
         //     });
         // });
-        
+
         // Crop buttons
         this.addListener(this.getElement('.qr-reset-crop-btn'), 'click', () => this.resetCrop());
         this.addListener(this.getElement('.qr-save-crop-btn'), 'click', () => this.applyCrop());
-        
+
         // Rotation slider
         const rotationSlider = this.getElement<HTMLInputElement>('.qr-rotation-slider');
         let rotationTimeout: NodeJS.Timeout;
@@ -356,25 +351,37 @@ export class QrImageEditor {
             const value = parseInt((e.target as HTMLInputElement).value);
             this.updateState({ rotation: value }, false, true);
             this.updateRotationValue();
-            
+
             // Debounce state saving to avoid too many history entries
             clearTimeout(rotationTimeout);
             rotationTimeout = setTimeout(() => {
                 this.saveState();
             }, 300);
         });
-        
+
         // Initialize slider dots
         this.createSliderDots();
-        
+
         // Setup crop overlay interactions
         this.setupCropHandlers();
+
+        // Handle viewport resize (orientation change on mobile)
+        const handleResize = () => {
+            this.calculateFixedCanvasSize();
+            this.render();
+            if (this.cropMode) {
+                this.updateCropOverlay();
+            }
+        };
+
+        window.visualViewport?.addEventListener('resize', handleResize);
+        window.addEventListener('resize', handleResize);
     }
-    
+
     private createSliderDots(): void {
         const dotsContainer = this.getElement('.qr-slider-dots');
         if (!dotsContainer) return;
-        
+
         // Create dots from -180 to +180, every 15 degrees
         // Total: 25 dots (-180, -165, -150, ..., -15, 0, 15, ..., 165, 180)
         for (let i = -180; i <= 180; i += 15) {
@@ -388,20 +395,20 @@ export class QrImageEditor {
             dotsContainer.appendChild(dot);
         }
     }
-    
+
     private setupCropHandlers(): void {
         this.cropOverlay = this.getElement('.qr-crop-overlay');
         if (!this.cropOverlay) return;
-        
+
         // Set initial visibility based on crop mode (crop mode is true by default)
         this.cropOverlay.style.display = this.cropMode ? 'block' : 'none';
-        
+
         const handles = this.cropOverlay.querySelectorAll('.qr-crop-handle');
         handles.forEach(handle => {
             handle.addEventListener('mousedown', (e) => this.startCropDrag(e as MouseEvent));
             handle.addEventListener('touchstart', (e) => this.startCropDrag(e as TouchEvent));
         });
-        
+
         // Drag the crop area itself - make entire overlay draggable except handles
         this.cropOverlay.addEventListener('mousedown', (e) => {
             const target = e.target as HTMLElement;
@@ -410,39 +417,39 @@ export class QrImageEditor {
                 this.startCropMove(e);
             }
         });
-        
+
         this.cropOverlay.addEventListener('touchstart', (e) => {
             const target = e.target as HTMLElement;
             if (!target.classList.contains('qr-crop-handle')) {
                 this.startCropMove(e.touches[0] as any);
             }
         });
-        
+
         document.addEventListener('mousemove', (e) => this.onCropDrag(e));
         document.addEventListener('touchmove', (e) => this.onCropDrag(e));
         document.addEventListener('mouseup', () => this.stopCropDrag());
         document.addEventListener('touchend', () => this.stopCropDrag());
     }
-    
+
     private isDraggingCrop = false;
     private dragType: 'handle' | 'move' | null = null;
     private dragHandleType: string | null = null;
     private dragStartPos = { x: 0, y: 0 };
     private cropStartState = { x: 0, y: 0, width: 0, height: 0 };
-    
+
     private startCropDrag(e: MouseEvent | TouchEvent): void {
         e.preventDefault();
         e.stopPropagation();
-        
+
         this.isDraggingCrop = true;
         this.dragType = 'handle';
-        
+
         const target = e.target as HTMLElement;
         this.dragHandleType = target.dataset.handle || null;
-        
+
         const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
         const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-        
+
         this.dragStartPos = { x: clientX, y: clientY };
         this.cropStartState = {
             x: this.state.cropX,
@@ -451,19 +458,19 @@ export class QrImageEditor {
             height: this.state.cropHeight
         };
     }
-    
+
     private startCropMove(e: MouseEvent): void {
         if (!this.image) {
             return;
         }
-        
+
         console.log('Starting crop move');
         this.isDraggingCrop = true;
         this.dragType = 'move';
-        
+
         const clientX = 'clientX' in e ? e.clientX : 0;
         const clientY = 'clientY' in e ? e.clientY : 0;
-        
+
         this.dragStartPos = { x: clientX, y: clientY };
         this.cropStartState = {
             x: this.state.cropX,
@@ -471,24 +478,24 @@ export class QrImageEditor {
             width: this.state.cropWidth,
             height: this.state.cropHeight
         };
-        
+
         e.preventDefault();
         e.stopPropagation();
     }
-    
+
     private onCropDrag(e: MouseEvent | TouchEvent): void {
         if (!this.isDraggingCrop || !this.image) return;
-        
+
         const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
         const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-        
+
         const deltaX = (clientX - this.dragStartPos.x) / this.imageScale;
         const deltaY = (clientY - this.dragStartPos.y) / this.imageScale;
-        
+
         if (this.dragType === 'handle' && this.dragHandleType) {
             // Handle resize logic
             const { x, y, width, height } = this.cropStartState;
-            
+
             switch (this.dragHandleType) {
                 case 'nw':
                     this.state.cropX = Math.max(0, Math.min(x + deltaX, x + width - 50));
@@ -530,18 +537,18 @@ export class QrImageEditor {
             // Move entire crop area
             const newX = this.cropStartState.x + deltaX;
             const newY = this.cropStartState.y + deltaY;
-            
+
             this.state.cropX = Math.max(0, Math.min(newX, this.image.width - this.state.cropWidth));
             this.state.cropY = Math.max(0, Math.min(newY, this.image.height - this.state.cropHeight));
         }
-        
+
         this.render();
         // Ensure crop overlay updates immediately during drag
         if (this.cropMode) {
             this.updateCropOverlay();
         }
     }
-    
+
     private stopCropDrag(): void {
         if (this.isDraggingCrop) {
             this.isDraggingCrop = false;
@@ -550,19 +557,19 @@ export class QrImageEditor {
             this.saveState();
         }
     }
-    
+
     private resetCrop(): void {
         this.resetCropToFullImage();
     }
 
     private resetAll(): void {
         if (!this.originalImage) return;
-        
+
         console.log('Reset All called - restoring original image');
-        
+
         // Restore original image
         this.image = this.originalImage;
-        
+
         // Reset all transformations to initial state
         this.state = {
             rotation: 0,
@@ -573,39 +580,39 @@ export class QrImageEditor {
             cropWidth: this.originalImage.width,
             cropHeight: this.originalImage.height
         };
-        
+
         console.log('Reset to original image and state:', this.state);
-        
+
         // Recalculate canvas size for original image
         this.calculateFixedCanvasSize();
-        
+
         // Don't clear history - instead go back to initial state in history
         this.historyIndex = 0;
         this.history[0] = { ...this.state };
-        
+
         // Update UI elements
         this.updateUIFromState();
-        
+
         // Render without saving new state (we're going back to index 0)
         this.render();
     }
-    
+
     private applyCrop(): void {
         if (!this.image) return;
-        
+
         // Create a new cropped image from current crop area
         const tempCanvas = document.createElement('canvas');
         const tempCtx = tempCanvas.getContext('2d');
         if (!tempCtx) return;
-        
+
         // Set high-quality rendering settings
         tempCtx.imageSmoothingEnabled = true;
         tempCtx.imageSmoothingQuality = 'high';
-        
+
         // Set canvas to crop size
         tempCanvas.width = this.state.cropWidth;
         tempCanvas.height = this.state.cropHeight;
-        
+
         // Draw the cropped portion
         tempCtx.drawImage(
             this.image,
@@ -618,26 +625,26 @@ export class QrImageEditor {
             this.state.cropWidth,
             this.state.cropHeight
         );
-        
+
         // Create new image from cropped canvas
         const croppedImage = new Image();
         croppedImage.onload = () => {
             // Replace current image with cropped version
             this.image = croppedImage;
-            
+
             // Reset crop to full new image size
             this.state.cropX = 0;
             this.state.cropY = 0;
             this.state.cropWidth = croppedImage.width;
             this.state.cropHeight = croppedImage.height;
-            
+
             // Recalculate canvas size for new image
             this.calculateFixedCanvasSize();
-            
+
             // Save state with image data for crop operations
             this.saveState();
             this.render();
-            
+
             // Show feedback by briefly changing button style
             const saveCropBtn = this.overlay?.querySelector('.qr-save-crop-btn');
             if (saveCropBtn) {
@@ -647,42 +654,42 @@ export class QrImageEditor {
                 }, 1500);
             }
         };
-        
+
         croppedImage.src = tempCanvas.toDataURL('image/png');
     }
 
     private switchTab(tab: 'rotation' | 'crop'): void {
         if (!this.overlay) return;
-        
+
         // Toggle crop mode
         this.cropMode = (tab === 'crop');
-        
+
         // Show/hide crop overlay
         if (this.cropOverlay) {
             this.cropOverlay.style.display = this.cropMode ? 'block' : 'none';
         }
-        
+
         // Auto-select entire image when entering crop mode for the first time
         // (only if crop dimensions are not yet set or are at initial state)
         if (this.cropMode && this.image) {
-            const isInitialCropState = 
-                this.state.cropWidth === this.image.width && 
+            const isInitialCropState =
+                this.state.cropWidth === this.image.width &&
                 this.state.cropHeight === this.image.height &&
                 this.state.cropX === 0 &&
                 this.state.cropY === 0;
-            
+
             // Only reset if it's at the initial full image state
             if (isInitialCropState && this.historyIndex === 0) {
                 // Don't reset, crop is already at full image
             }
         }
-        
+
         // Update tab buttons (only rotation and crop, not flip toggles)
         const tabs = this.getElements('.qr-editor-tab:not(.qr-flip-toggle-tab)');
         tabs?.forEach(t => {
             t.classList.toggle('active', t.getAttribute('data-tab') === tab);
         });
-        
+
         // Update tab content
         const contents = this.getElements('.qr-editor-tab-content');
         contents?.forEach(c => {
@@ -724,23 +731,23 @@ export class QrImageEditor {
         if (this.historyIndex < this.history.length - 1) {
             this.history = this.history.slice(0, this.historyIndex + 1);
         }
-        
+
         // Create new state
         const newState: EditorState = { ...this.state };
-        
+
         // Always include image data for proper history restoration
         if (this.canvas) {
             newState.imageDataUrl = this.canvas.toDataURL('image/png');
         }
-        
+
         // Add new state
         this.history.push(newState);
         this.historyIndex++;
-        
+
         console.log('State saved. History index:', this.historyIndex, 'History length:', this.history.length);
         console.log('Current state:', this.state);
         console.log('Image data included:', !!newState.imageDataUrl);
-        
+
         // Limit history to 50 states for better undo/redo experience
         if (this.history.length > 50) {
             this.history.shift();
@@ -753,7 +760,7 @@ export class QrImageEditor {
         if (this.historyIndex > 0) {
             this.historyIndex--;
             const targetState = this.history[this.historyIndex];
-            
+
             // Update state (excluding imageDataUrl) with validation
             this.state = {
                 rotation: targetState.rotation,
@@ -764,9 +771,9 @@ export class QrImageEditor {
                 cropWidth: Math.max(50, targetState.cropWidth || (this.image?.width || 100)),
                 cropHeight: Math.max(50, targetState.cropHeight || (this.image?.height || 100))
             };
-            
+
             console.log('Undo to state:', this.state, 'History index:', this.historyIndex);
-            
+
             // Restore image from stored data or original
             if (targetState.imageDataUrl) {
                 this.restoreImageFromDataUrl(targetState.imageDataUrl);
@@ -793,7 +800,7 @@ export class QrImageEditor {
         if (this.historyIndex < this.history.length - 1) {
             this.historyIndex++;
             const targetState = this.history[this.historyIndex];
-            
+
             // Update state (excluding imageDataUrl) with validation
             this.state = {
                 rotation: targetState.rotation,
@@ -804,9 +811,9 @@ export class QrImageEditor {
                 cropWidth: Math.max(50, targetState.cropWidth || (this.image?.width || 100)),
                 cropHeight: Math.max(50, targetState.cropHeight || (this.image?.height || 100))
             };
-            
+
             console.log('Redo to state:', this.state, 'History index:', this.historyIndex);
-            
+
             // Restore image from stored data
             if (targetState.imageDataUrl) {
                 this.restoreImageFromDataUrl(targetState.imageDataUrl);
@@ -828,14 +835,14 @@ export class QrImageEditor {
 
     private updateUIFromState(): void {
         if (!this.overlay) return;
-        
+
         // Update rotation slider
         const rotationSlider = this.getElement<HTMLInputElement>('.qr-rotation-slider');
         if (rotationSlider) {
             rotationSlider.value = String(this.state.rotation);
             this.updateRotationValue();
         }
-        
+
         // Update flip toggle tabs
         // const flipTabs = this.getElements('.qr-flip-toggle-tab');
         // flipTabs?.forEach(tab => {
@@ -847,7 +854,7 @@ export class QrImageEditor {
         //         flipType === 'vertical' ? this.state.flipY : false
         //     );
         // });
-        
+
         // Update crop overlay position if in crop mode
         if (this.cropMode) {
             // Force a refresh of crop overlay positioning
@@ -857,95 +864,95 @@ export class QrImageEditor {
 
     private calculateFixedCanvasSize(): void {
         if (!this.canvas || !this.image) return;
-        
-        // Get actual viewport dimensions for mobile
-        const viewportWidth = window.innerWidth;
-        const viewportHeight = window.innerHeight;
-        
-        // Get container dimensions with aggressive fallbacks
+
+        // Force container to calculate dimensions if needed
         const containerElement = this.canvas.parentElement;
-        let containerWidth = containerElement?.clientWidth || 0;
-        let containerHeight = containerElement?.clientHeight || 0;
-        
-        // If container hasn't rendered yet, use aggressive viewport-based defaults
-        if (containerWidth === 0 || containerHeight === 0) {
-            containerWidth = viewportWidth;
-            // On mobile, allocate 75% of viewport height for canvas (rest for controls/header)
-            containerHeight = viewportHeight * 0.75;
-        }
-        
-        console.log('Container dimensions:', containerWidth, 'x', containerHeight);
-        console.log('Image dimensions:', this.image.width, 'x', this.image.height);
-        console.log('Viewport dimensions:', viewportWidth, 'x', viewportHeight);
-        
-        // Calculate display dimensions to fill container completely
+        if (!containerElement) return;
+
+        // Get viewport dimensions - prefer visualViewport for mobile
+        const viewportWidth = window.visualViewport?.width || window.innerWidth;
+        const viewportHeight = window.visualViewport?.height || window.innerHeight;
+
+        // Calculate available space for canvas (accounting for header ~80px and controls ~120px)
+        const headerHeight = 80;
+        const controlsHeight = 120;
+        const availableHeight = viewportHeight - headerHeight - controlsHeight;
+
+        // Use viewport width with padding
+        const availableWidth = viewportWidth - 32; // 16px padding on each side
+
+        console.log('Mobile canvas calculation:', {
+            viewport: { width: viewportWidth, height: viewportHeight },
+            available: { width: availableWidth, height: availableHeight },
+            image: { width: this.image.width, height: this.image.height }
+        });
+
+        // Calculate display dimensions to fit within available space
         const imgRatio = this.image.width / this.image.height;
-        const containerRatio = containerWidth / containerHeight;
-        
+        const availableRatio = availableWidth / availableHeight;
+
         let displayWidth: number;
         let displayHeight: number;
-        
-        // Fill container completely for consistent look across devices
-        if (imgRatio > containerRatio) {
-            // Image is wider - fit to width and fill completely
-            displayWidth = containerWidth;
+
+        if (imgRatio > availableRatio) {
+            // Image is wider - fit to width
+            displayWidth = availableWidth;
             displayHeight = displayWidth / imgRatio;
         } else {
-            // Image is taller - fit to height and fill completely
-            displayHeight = containerHeight;
+            // Image is taller - fit to height
+            displayHeight = availableHeight;
             displayWidth = displayHeight * imgRatio;
         }
-        
-        console.log('Display dimensions:', displayWidth, 'x', displayHeight);
-        console.log('Image scale:', displayWidth / this.image.width);
-        
+
+        console.log('Final display dimensions:', { width: displayWidth, height: displayHeight });
+
         // Store fixed dimensions
         this.fixedCanvasWidth = displayWidth;
         this.fixedCanvasHeight = displayHeight;
         this.imageScale = displayWidth / this.image.width;
-        
+
         // Initialize crop dimensions to full image if not set
         if (this.state.cropWidth === 0 || this.state.cropHeight === 0) {
             this.state.cropX = 0;
             this.state.cropY = 0;
-            this.state.cropWidth = this.image.width;  // Full image width in original coordinates
-            this.state.cropHeight = this.image.height; // Full image height in original coordinates
+            this.state.cropWidth = this.image.width;
+            this.state.cropHeight = this.image.height;
         }
     }
 
     private render(): void {
         if (!this.canvas || !this.ctx || !this.image) return;
-        
+
         // Use fixed canvas size (doesn't change with transformations)
         const displayWidth = this.fixedCanvasWidth;
         const displayHeight = this.fixedCanvasHeight;
-        
+
         // Set canvas to fixed size
         this.canvas.width = displayWidth;
         this.canvas.height = displayHeight;
-        
+
         // Clear canvas
         this.ctx.clearRect(0, 0, displayWidth, displayHeight);
-        
+
         // Set high-quality rendering for display
         this.ctx.imageSmoothingEnabled = true;
         this.ctx.imageSmoothingQuality = 'high';
-        
+
         // Save context state
         this.ctx.save();
-        
+
         // Move to center for rotation
         this.ctx.translate(displayWidth / 2, displayHeight / 2);
-        
+
         // Apply rotation (convert from -180/+180 range to radians)
         this.ctx.rotate((this.state.rotation * Math.PI) / 180);
-        
+
         // Apply flip
         this.ctx.scale(
             1, // this.state.flipX ? -1 : 1,
             1  // this.state.flipY ? -1 : 1
         );
-        
+
         // Draw image centered
         this.ctx.drawImage(
             this.image,
@@ -954,16 +961,16 @@ export class QrImageEditor {
             displayWidth,
             displayHeight
         );
-        
+
         // Restore context state
         this.ctx.restore();
-        
+
         // Update crop overlay if in crop mode
         if (this.cropMode) {
             this.updateCropOverlay();
         }
     }
-    
+
     private updateCropOverlay(): void {
         if (!this.cropOverlay || !this.canvas || !this.image) {
             console.log('Cannot update crop overlay - missing elements:', {
@@ -973,19 +980,19 @@ export class QrImageEditor {
             });
             return;
         }
-        
+
         // Validate and constrain crop state to image boundaries
         const maxCropX = Math.max(0, this.image.width - 50);
         const maxCropY = Math.max(0, this.image.height - 50);
         const maxCropWidth = this.image.width - this.state.cropX;
         const maxCropHeight = this.image.height - this.state.cropY;
-        
+
         // Constrain crop values to valid ranges
         const constrainedCropX = Math.max(0, Math.min(this.state.cropX, maxCropX));
         const constrainedCropY = Math.max(0, Math.min(this.state.cropY, maxCropY));
         const constrainedCropWidth = Math.max(50, Math.min(this.state.cropWidth, maxCropWidth));
         const constrainedCropHeight = Math.max(50, Math.min(this.state.cropHeight, maxCropHeight));
-        
+
         // Update state if values were constrained
         if (constrainedCropX !== this.state.cropX || constrainedCropY !== this.state.cropY ||
             constrainedCropWidth !== this.state.cropWidth || constrainedCropHeight !== this.state.cropHeight) {
@@ -995,40 +1002,40 @@ export class QrImageEditor {
             this.state.cropHeight = constrainedCropHeight;
             console.log('Crop state constrained to image boundaries:', this.state);
         }
-        
+
         // Get canvas position within its container
         const canvasRect = this.canvas.getBoundingClientRect();
         const containerRect = this.canvas.parentElement!.getBoundingClientRect();
-        
+
         // Calculate canvas offset within container
         const canvasOffsetX = canvasRect.left - containerRect.left;
         const canvasOffsetY = canvasRect.top - containerRect.top;
-        
+
         // Calculate the actual displayed image position on canvas
         const displayedImageWidth = this.fixedCanvasWidth;
         const displayedImageHeight = this.fixedCanvasHeight;
-        
+
         // Get the actual canvas dimensions
         const canvasDisplayWidth = this.canvas.offsetWidth;
         const canvasDisplayHeight = this.canvas.offsetHeight;
-        
+
         // Calculate image position within the canvas (centered) - more precise calculation
         const imageStartX = canvasOffsetX + Math.round((canvasDisplayWidth - displayedImageWidth) / 2);
         const imageStartY = canvasOffsetY + Math.round((canvasDisplayHeight - displayedImageHeight) / 2);
-        
+
         // Calculate crop rectangle in screen coordinates relative to displayed image
         const cropLeft = imageStartX + (this.state.cropX * this.imageScale);
         const cropTop = imageStartY + (this.state.cropY * this.imageScale);
         const cropWidth = (this.state.cropWidth * this.imageScale);
         const cropHeight = (this.state.cropHeight * this.imageScale);
-        
+
         // Ensure crop overlay stays within the displayed image bounds
         const maxCropLeft = imageStartX + displayedImageWidth - cropWidth;
         const maxCropTop = imageStartY + displayedImageHeight - cropHeight;
-        
+
         const constrainedCropLeft = Math.max(imageStartX, Math.min(cropLeft, maxCropLeft));
         const constrainedCropTop = Math.max(imageStartY, Math.min(cropTop, maxCropTop));
-        
+
         console.log('Updating crop overlay:', {
             imageInfo: { width: this.image.width, height: this.image.height },
             displayedImage: { width: displayedImageWidth, height: displayedImageHeight },
@@ -1038,13 +1045,13 @@ export class QrImageEditor {
             originalPosition: { left: cropLeft, top: cropTop },
             finalPosition: { left: constrainedCropLeft, top: constrainedCropTop, width: cropWidth, height: cropHeight }
         });
-        
+
         // Position the overlay using constrained values with precise pixel alignment
         this.cropOverlay.style.left = `${Math.round(constrainedCropLeft)}px`;
         this.cropOverlay.style.top = `${Math.round(constrainedCropTop)}px`;
         this.cropOverlay.style.width = `${Math.round(cropWidth)}px`;
         this.cropOverlay.style.height = `${Math.round(cropHeight)}px`;
-        
+
         // Ensure overlay is visible
         this.cropOverlay.style.display = 'block';
     }
@@ -1056,7 +1063,7 @@ export class QrImageEditor {
             this.calculateFixedCanvasSize();
             this.updateUIFromState();
             this.render();
-            
+
             // Force crop overlay update with longer delay to ensure canvas is fully rendered
             if (this.cropMode) {
                 setTimeout(() => {
@@ -1070,58 +1077,58 @@ export class QrImageEditor {
 
     private async handleSave(): Promise<void> {
         if (!this.image) return;
-        
+
         try {
             // Create a final canvas with all transformations
             const finalCanvas = document.createElement('canvas');
             const finalCtx = finalCanvas.getContext('2d');
-            
+
             if (!finalCtx) throw new Error('Failed to create canvas context');
-            
+
             // Set maximum quality rendering settings
             finalCtx.imageSmoothingEnabled = true;
             finalCtx.imageSmoothingQuality = 'high';
-            
+
             // Additional quality settings for better rendering
             finalCtx.globalCompositeOperation = 'source-over';
-            
+
             // Fixed output width of 600px, height calculated by aspect ratio
             const FIXED_WIDTH = 600;
             const aspectRatio = this.state.cropWidth / this.state.cropHeight;
-            
+
             let outputWidth = FIXED_WIDTH;
             let outputHeight = Math.round(FIXED_WIDTH / aspectRatio);
-            
+
             // Only apply reduction if original is larger than 600px
             if (this.state.cropWidth <= FIXED_WIDTH) {
                 outputWidth = Math.round(this.state.cropWidth);
                 outputHeight = Math.round(this.state.cropHeight);
             }
-            
+
             console.log('Resolution reduction applied:', {
                 original: { width: this.state.cropWidth, height: this.state.cropHeight },
                 output: { width: outputWidth, height: outputHeight },
                 reduction: `${Math.round((1 - (outputWidth * outputHeight) / (this.state.cropWidth * this.state.cropHeight)) * 100)}%`
             });
-            
+
             finalCanvas.width = outputWidth;
             finalCanvas.height = outputHeight;
-            
+
             // Apply transformations
             finalCtx.save();
-            
+
             // Move to center
             finalCtx.translate(outputWidth / 2, outputHeight / 2);
-            
+
             // Apply rotation
             finalCtx.rotate((this.state.rotation * Math.PI) / 180);
-            
+
             // Apply flip only (no scale)
             finalCtx.scale(
                 1, // this.state.flipX ? -1 : 1,
                 1  // this.state.flipY ? -1 : 1
             );
-            
+
             // Draw cropped region scaled to output dimensions
             finalCtx.drawImage(
                 this.image,
@@ -1134,12 +1141,12 @@ export class QrImageEditor {
                 outputWidth,
                 outputHeight
             );
-            
+
             finalCtx.restore();
-            
+
             // Fixed quality of 0.85 (85%) for good balance between quality and file size
             const outputQuality = 0.85;
-            
+
             // Convert to blob - use JPEG with fixed quality for smaller file size
             const blob = await new Promise<Blob>((resolve, reject) => {
                 finalCanvas.toBlob(
@@ -1155,15 +1162,15 @@ export class QrImageEditor {
                     outputQuality
                 );
             });
-            
+
             // Create file with JPEG extension
             const fileName = this.config.fileName || `edited-${Date.now()}.jpg`;
             const file = new File([blob], fileName, { type: 'image/jpeg' });
-            
+
             // Always call save callback without uploading
             // Upload will be handled later by the parent component
             this.config.onSave(file);
-            
+
             // Close editor
             this.close();
         } catch (error) {
@@ -1183,7 +1190,7 @@ export class QrImageEditor {
             this.overlay.remove();
             this.overlay = null;
         }
-        
+
         // Revoke object URL
         if (this.image) {
             URL.revokeObjectURL(this.image.src);
