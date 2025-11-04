@@ -878,35 +878,31 @@ export class QrImageEditor {
         console.log('Image dimensions:', this.image.width, 'x', this.image.height);
         console.log('Viewport dimensions:', viewportWidth, 'x', viewportHeight);
         
-        // Since canvas CSS is now width:100%, height:100%, the canvas fills the container
-        // We set the internal canvas dimensions to match container for crisp rendering
-        this.fixedCanvasWidth = containerWidth;
-        this.fixedCanvasHeight = containerHeight;
-        
-        // Calculate how the image fits within the canvas (maintaining aspect ratio)
+        // Calculate display dimensions to fill container completely
         const imgRatio = this.image.width / this.image.height;
         const containerRatio = containerWidth / containerHeight;
         
-        let imageDisplayWidth: number;
-        let imageDisplayHeight: number;
+        let displayWidth: number;
+        let displayHeight: number;
         
-        // Calculate image size that fits within canvas (object-fit: contain behavior)
+        // Fill container completely for consistent look across devices
         if (imgRatio > containerRatio) {
-            // Image is wider - fit to width
-            imageDisplayWidth = containerWidth;
-            imageDisplayHeight = imageDisplayWidth / imgRatio;
+            // Image is wider - fit to width and fill completely
+            displayWidth = containerWidth;
+            displayHeight = displayWidth / imgRatio;
         } else {
-            // Image is taller - fit to height
-            imageDisplayHeight = containerHeight;
-            imageDisplayWidth = imageDisplayHeight * imgRatio;
+            // Image is taller - fit to height and fill completely
+            displayHeight = containerHeight;
+            displayWidth = displayHeight * imgRatio;
         }
         
-        // Calculate the image scale based on how much it's scaled down
-        this.imageScale = imageDisplayWidth / this.image.width;
+        console.log('Display dimensions:', displayWidth, 'x', displayHeight);
+        console.log('Image scale:', displayWidth / this.image.width);
         
-        console.log('Canvas dimensions (internal):', this.fixedCanvasWidth, 'x', this.fixedCanvasHeight);
-        console.log('Image display dimensions:', imageDisplayWidth, 'x', imageDisplayHeight);
-        console.log('Image scale:', this.imageScale);
+        // Store fixed dimensions
+        this.fixedCanvasWidth = displayWidth;
+        this.fixedCanvasHeight = displayHeight;
+        this.imageScale = displayWidth / this.image.width;
         
         // Initialize crop dimensions to full image if not set
         if (this.state.cropWidth === 0 || this.state.cropHeight === 0) {
@@ -920,60 +916,43 @@ export class QrImageEditor {
     private render(): void {
         if (!this.canvas || !this.ctx || !this.image) return;
         
-        // Canvas fills container completely (via CSS width:100%, height:100%)
-        const canvasWidth = this.fixedCanvasWidth;
-        const canvasHeight = this.fixedCanvasHeight;
+        // Use fixed canvas size (doesn't change with transformations)
+        const displayWidth = this.fixedCanvasWidth;
+        const displayHeight = this.fixedCanvasHeight;
         
-        // Set internal canvas dimensions to match
-        this.canvas.width = canvasWidth;
-        this.canvas.height = canvasHeight;
+        // Set canvas to fixed size
+        this.canvas.width = displayWidth;
+        this.canvas.height = displayHeight;
         
         // Clear canvas
-        this.ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+        this.ctx.clearRect(0, 0, displayWidth, displayHeight);
         
         // Set high-quality rendering for display
         this.ctx.imageSmoothingEnabled = true;
         this.ctx.imageSmoothingQuality = 'high';
         
-        // Calculate image display size (maintains aspect ratio, fits within canvas)
-        const imgRatio = this.image.width / this.image.height;
-        const canvasRatio = canvasWidth / canvasHeight;
-        
-        let imageDisplayWidth: number;
-        let imageDisplayHeight: number;
-        
-        if (imgRatio > canvasRatio) {
-            // Image is wider - fit to width
-            imageDisplayWidth = canvasWidth;
-            imageDisplayHeight = imageDisplayWidth / imgRatio;
-        } else {
-            // Image is taller - fit to height
-            imageDisplayHeight = canvasHeight;
-            imageDisplayWidth = imageDisplayHeight * imgRatio;
-        }
-        
         // Save context state
         this.ctx.save();
         
-        // Move to center of canvas for rotation
-        this.ctx.translate(canvasWidth / 2, canvasHeight / 2);
+        // Move to center for rotation
+        this.ctx.translate(displayWidth / 2, displayHeight / 2);
         
         // Apply rotation (convert from -180/+180 range to radians)
         this.ctx.rotate((this.state.rotation * Math.PI) / 180);
         
-        // Apply flip (commented out - flip functionality disabled)
+        // Apply flip
         this.ctx.scale(
             1, // this.state.flipX ? -1 : 1,
             1  // this.state.flipY ? -1 : 1
         );
         
-        // Draw image centered at calculated display size
+        // Draw image centered
         this.ctx.drawImage(
             this.image,
-            -imageDisplayWidth / 2,
-            -imageDisplayHeight / 2,
-            imageDisplayWidth,
-            imageDisplayHeight
+            -displayWidth / 2,
+            -displayHeight / 2,
+            displayWidth,
+            displayHeight
         );
         
         // Restore context state
@@ -1025,42 +1004,23 @@ export class QrImageEditor {
         const canvasOffsetX = canvasRect.left - containerRect.left;
         const canvasOffsetY = canvasRect.top - containerRect.top;
         
-        // Calculate the actual displayed image size (fits within canvas, maintains aspect ratio)
-        const imgRatio = this.image.width / this.image.height;
-        const canvasRatio = this.fixedCanvasWidth / this.fixedCanvasHeight;
+        // Calculate the actual displayed image position on canvas
+        const displayedImageWidth = this.fixedCanvasWidth;
+        const displayedImageHeight = this.fixedCanvasHeight;
         
-        let displayedImageWidth: number;
-        let displayedImageHeight: number;
-        
-        if (imgRatio > canvasRatio) {
-            // Image is wider - fit to width
-            displayedImageWidth = this.fixedCanvasWidth;
-            displayedImageHeight = displayedImageWidth / imgRatio;
-        } else {
-            // Image is taller - fit to height
-            displayedImageHeight = this.fixedCanvasHeight;
-            displayedImageWidth = displayedImageHeight * imgRatio;
-        }
-        
-        // Canvas fills container via CSS, so canvas display size = container size
+        // Get the actual canvas dimensions
         const canvasDisplayWidth = this.canvas.offsetWidth;
         const canvasDisplayHeight = this.canvas.offsetHeight;
         
-        // Calculate image position within the canvas (centered since image may be smaller than canvas)
-        const imageOffsetX = (canvasDisplayWidth - displayedImageWidth) / 2;
-        const imageOffsetY = (canvasDisplayHeight - displayedImageHeight) / 2;
-        
-        const imageStartX = canvasOffsetX + Math.round(imageOffsetX);
-        const imageStartY = canvasOffsetY + Math.round(imageOffsetY);
-        
-        // Recalculate image scale based on actual displayed image size
-        const actualImageScale = displayedImageWidth / this.image.width;
+        // Calculate image position within the canvas (centered) - more precise calculation
+        const imageStartX = canvasOffsetX + Math.round((canvasDisplayWidth - displayedImageWidth) / 2);
+        const imageStartY = canvasOffsetY + Math.round((canvasDisplayHeight - displayedImageHeight) / 2);
         
         // Calculate crop rectangle in screen coordinates relative to displayed image
-        const cropLeft = imageStartX + (this.state.cropX * actualImageScale);
-        const cropTop = imageStartY + (this.state.cropY * actualImageScale);
-        const cropWidth = (this.state.cropWidth * actualImageScale);
-        const cropHeight = (this.state.cropHeight * actualImageScale);
+        const cropLeft = imageStartX + (this.state.cropX * this.imageScale);
+        const cropTop = imageStartY + (this.state.cropY * this.imageScale);
+        const cropWidth = (this.state.cropWidth * this.imageScale);
+        const cropHeight = (this.state.cropHeight * this.imageScale);
         
         // Ensure crop overlay stays within the displayed image bounds
         const maxCropLeft = imageStartX + displayedImageWidth - cropWidth;
@@ -1074,7 +1034,7 @@ export class QrImageEditor {
             displayedImage: { width: displayedImageWidth, height: displayedImageHeight },
             imagePosition: { x: imageStartX, y: imageStartY },
             cropState: { x: this.state.cropX, y: this.state.cropY, w: this.state.cropWidth, h: this.state.cropHeight },
-            imageScale: actualImageScale,
+            imageScale: this.imageScale,
             originalPosition: { left: cropLeft, top: cropTop },
             finalPosition: { left: constrainedCropLeft, top: constrainedCropTop, width: cropWidth, height: cropHeight }
         });
