@@ -1092,9 +1092,8 @@
     background: #000000;
     overflow: hidden;
     position: relative;
-    /* Increased height for better image visibility */
-    max-height: 70%;
-    height: 70%;
+    /* Fill available space */
+    min-height: 0;
 }
 
 .qr-canvas-container {
@@ -1104,6 +1103,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    min-height: 0;
 }
 
 .qr-editor-canvas {
@@ -1112,7 +1112,6 @@
     max-height: 100%;
     width: auto;
     height: auto;
-    border-radius: 8px;
     object-fit: contain;
 }
 
@@ -1678,14 +1677,17 @@
         -webkit-overflow-scrolling: touch;
     }
 
-    /* Adjust canvas area to leave more room for controls */
+    /* Adjust canvas area to fill more space on mobile */
     .qr-image-editor-canvas-wrapper {
-        height: 60% !important;
-        max-height: 64% !important;
+        height: 75% !important;
+        max-height: 75% !important;
     }
     
     .qr-image-editor-canvas {
-        max-height: 85% !important;
+        max-width: 100% !important;
+        max-height: 100% !important;
+        width: 100% !important;
+        height: 100% !important;
     }
 
     /* Ensure controls don't get cut off */
@@ -1704,17 +1706,13 @@
 @media (max-height: 600px) {
     .qr-image-editor-controls {
         min-height: 80px !important;
-        max-height: 30vh !important;
+        max-height: 25vh !important;
         padding: 0.5rem !important;
     }
 
     .qr-image-editor-canvas-wrapper {
-        height: 55% !important;
-        max-height: 55% !important;
-    }
-    
-    .qr-image-editor-canvas {
-        max-height: 80% !important;
+        height: 70% !important;
+        max-height: 70% !important;
     }
 
     .qr-editor-tab {
@@ -1727,17 +1725,13 @@
 @media (max-height: 500px) and (orientation: landscape) {
     .qr-image-editor-controls {
         min-height: 60px !important;
-        max-height: 35vh !important;
+        max-height: 30vh !important;
         padding: 0.375rem !important;
     }
 
     .qr-image-editor-canvas-wrapper {
-        height: 50% !important;
-        max-height: 50% !important;
-    }
-    
-    .qr-image-editor-canvas {
-        max-height: 75% !important;
+        height: 65% !important;
+        max-height: 65% !important;
     }
 
     .qr-editor-tabs {
