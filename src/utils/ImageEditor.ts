@@ -484,65 +484,123 @@ export class QrImageEditor {
     }
 
     private onCropDrag(e: MouseEvent | TouchEvent): void {
-        if (!this.isDraggingCrop || !this.image) return;
-
+        if (!this.isDraggingCrop || !this.image || !this.canvas) return;
+        
         const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
         const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-
-        const deltaX = (clientX - this.dragStartPos.x) / this.imageScale;
-        const deltaY = (clientY - this.dragStartPos.y) / this.imageScale;
-
+        
+        // Calculate actual scale based on displayed canvas size
+        const actualCanvasWidth = this.canvas.offsetWidth;
+        const actualImageScale = actualCanvasWidth / this.image.width;
+        
+        // Use actual scale for delta calculations
+        const deltaX = (clientX - this.dragStartPos.x) / actualImageScale;
+        const deltaY = (clientY - this.dragStartPos.y) / actualImageScale;
+        
         if (this.dragType === 'handle' && this.dragHandleType) {
-            // Handle resize logic
+            // Handle resize logic with proper constraints
             const { x, y, width, height } = this.cropStartState;
-
+            const MIN_SIZE = 50;
+            
+            // Store original state for rollback if needed
+            let newX = x;
+            let newY = y;
+            let newWidth = width;
+            let newHeight = height;
+            
             switch (this.dragHandleType) {
                 case 'nw':
-                    this.state.cropX = Math.max(0, Math.min(x + deltaX, x + width - 50));
-                    this.state.cropY = Math.max(0, Math.min(y + deltaY, y + height - 50));
-                    this.state.cropWidth = width - (this.state.cropX - x);
-                    this.state.cropHeight = height - (this.state.cropY - y);
+                    // Northwest corner - resize from top-left
+                    newX = Math.max(0, Math.min(x + deltaX, x + width - MIN_SIZE));
+                    newY = Math.max(0, Math.min(y + deltaY, y + height - MIN_SIZE));
+                    newWidth = width - (newX - x);
+                    newHeight = height - (newY - y);
                     break;
+                    
                 case 'ne':
-                    this.state.cropY = Math.max(0, Math.min(y + deltaY, y + height - 50));
-                    this.state.cropWidth = Math.max(50, Math.min(width + deltaX, this.image.width - x));
-                    this.state.cropHeight = height - (this.state.cropY - y);
+                    // Northeast corner - resize from top-right
+                    newY = Math.max(0, Math.min(y + deltaY, y + height - MIN_SIZE));
+                    newWidth = Math.max(MIN_SIZE, Math.min(width + deltaX, this.image.width - x));
+                    newHeight = height - (newY - y);
                     break;
+                    
                 case 'sw':
-                    this.state.cropX = Math.max(0, Math.min(x + deltaX, x + width - 50));
-                    this.state.cropWidth = width - (this.state.cropX - x);
-                    this.state.cropHeight = Math.max(50, Math.min(height + deltaY, this.image.height - y));
+                    // Southwest corner - resize from bottom-left
+                    newX = Math.max(0, Math.min(x + deltaX, x + width - MIN_SIZE));
+                    newWidth = width - (newX - x);
+                    newHeight = Math.max(MIN_SIZE, Math.min(height + deltaY, this.image.height - y));
                     break;
+                    
                 case 'se':
-                    this.state.cropWidth = Math.max(50, Math.min(width + deltaX, this.image.width - x));
-                    this.state.cropHeight = Math.max(50, Math.min(height + deltaY, this.image.height - y));
+                    // Southeast corner - resize from bottom-right
+                    newWidth = Math.max(MIN_SIZE, Math.min(width + deltaX, this.image.width - x));
+                    newHeight = Math.max(MIN_SIZE, Math.min(height + deltaY, this.image.height - y));
                     break;
+                    
                 // Edge handles
                 case 'n':
-                    this.state.cropY = Math.max(0, Math.min(y + deltaY, y + height - 50));
-                    this.state.cropHeight = height - (this.state.cropY - y);
+                    // North edge - resize from top
+                    newY = Math.max(0, Math.min(y + deltaY, y + height - MIN_SIZE));
+                    newHeight = height - (newY - y);
                     break;
+                    
                 case 's':
-                    this.state.cropHeight = Math.max(50, Math.min(height + deltaY, this.image.height - y));
+                    // South edge - resize from bottom
+                    newHeight = Math.max(MIN_SIZE, Math.min(height + deltaY, this.image.height - y));
                     break;
+                    
                 case 'e':
-                    this.state.cropWidth = Math.max(50, Math.min(width + deltaX, this.image.width - x));
+                    // East edge - resize from right
+                    newWidth = Math.max(MIN_SIZE, Math.min(width + deltaX, this.image.width - x));
                     break;
+                    
                 case 'w':
-                    this.state.cropX = Math.max(0, Math.min(x + deltaX, x + width - 50));
-                    this.state.cropWidth = width - (this.state.cropX - x);
+                    // West edge - resize from left
+                    newX = Math.max(0, Math.min(x + deltaX, x + width - MIN_SIZE));
+                    newWidth = width - (newX - x);
                     break;
             }
+            
+            // Final constraints to ensure crop stays within image bounds
+            newX = Math.max(0, Math.min(newX, this.image.width - MIN_SIZE));
+            newY = Math.max(0, Math.min(newY, this.image.height - MIN_SIZE));
+            newWidth = Math.max(MIN_SIZE, Math.min(newWidth, this.image.width - newX));
+            newHeight = Math.max(MIN_SIZE, Math.min(newHeight, this.image.height - newY));
+            
+            // Apply the new values
+            this.state.cropX = newX;
+            this.state.cropY = newY;
+            this.state.cropWidth = newWidth;
+            this.state.cropHeight = newHeight;
+            
+            console.log('Crop resize:', {
+                handle: this.dragHandleType,
+                crop: { x: newX, y: newY, width: newWidth, height: newHeight },
+                image: { width: this.image.width, height: this.image.height },
+                scale: { stored: this.imageScale, actual: actualImageScale }
+            });
+            
         } else if (this.dragType === 'move') {
             // Move entire crop area
             const newX = this.cropStartState.x + deltaX;
             const newY = this.cropStartState.y + deltaY;
-
+            
+            // Constrain movement to keep crop within image bounds
             this.state.cropX = Math.max(0, Math.min(newX, this.image.width - this.state.cropWidth));
             this.state.cropY = Math.max(0, Math.min(newY, this.image.height - this.state.cropHeight));
+            
+            console.log('Crop move:', {
+                crop: { x: this.state.cropX, y: this.state.cropY },
+                maxPosition: { 
+                    x: this.image.width - this.state.cropWidth, 
+                    y: this.image.height - this.state.cropHeight 
+                },
+                scale: { stored: this.imageScale, actual: actualImageScale }
+            });
         }
-
+        
         this.render();
+        
         // Ensure crop overlay updates immediately during drag
         if (this.cropMode) {
             this.updateCropOverlay();
@@ -980,19 +1038,19 @@ export class QrImageEditor {
             });
             return;
         }
-
+    
         // Validate and constrain crop state to image boundaries
         const maxCropX = Math.max(0, this.image.width - 50);
         const maxCropY = Math.max(0, this.image.height - 50);
         const maxCropWidth = this.image.width - this.state.cropX;
         const maxCropHeight = this.image.height - this.state.cropY;
-
+    
         // Constrain crop values to valid ranges
         const constrainedCropX = Math.max(0, Math.min(this.state.cropX, maxCropX));
         const constrainedCropY = Math.max(0, Math.min(this.state.cropY, maxCropY));
         const constrainedCropWidth = Math.max(50, Math.min(this.state.cropWidth, maxCropWidth));
         const constrainedCropHeight = Math.max(50, Math.min(this.state.cropHeight, maxCropHeight));
-
+    
         // Update state if values were constrained
         if (constrainedCropX !== this.state.cropX || constrainedCropY !== this.state.cropY ||
             constrainedCropWidth !== this.state.cropWidth || constrainedCropHeight !== this.state.cropHeight) {
@@ -1002,56 +1060,65 @@ export class QrImageEditor {
             this.state.cropHeight = constrainedCropHeight;
             console.log('Crop state constrained to image boundaries:', this.state);
         }
-
+    
         // Get canvas position within its container
         const canvasRect = this.canvas.getBoundingClientRect();
         const containerRect = this.canvas.parentElement!.getBoundingClientRect();
-
-        // Calculate canvas offset within container
+    
+        // The canvas is rendered at its actual displayed size (offsetWidth/Height)
+        // which may be different from canvas.width/height due to CSS
+        const actualCanvasWidth = this.canvas.offsetWidth;
+        const actualCanvasHeight = this.canvas.offsetHeight;
+    
+        // Calculate canvas offset within container (this includes the container's padding)
         const canvasOffsetX = canvasRect.left - containerRect.left;
         const canvasOffsetY = canvasRect.top - containerRect.top;
-
-        // Calculate the actual displayed image position on canvas
-        const displayedImageWidth = this.fixedCanvasWidth;
-        const displayedImageHeight = this.fixedCanvasHeight;
-
-        // Get the actual canvas dimensions
-        const canvasDisplayWidth = this.canvas.offsetWidth;
-        const canvasDisplayHeight = this.canvas.offsetHeight;
-
-        // Calculate image position within the canvas (centered) - more precise calculation
-        const imageStartX = canvasOffsetX + Math.round((canvasDisplayWidth - displayedImageWidth) / 2);
-        const imageStartY = canvasOffsetY + Math.round((canvasDisplayHeight - displayedImageHeight) / 2);
-
-        // Calculate crop rectangle in screen coordinates relative to displayed image
-        const cropLeft = imageStartX + (this.state.cropX * this.imageScale);
-        const cropTop = imageStartY + (this.state.cropY * this.imageScale);
-        const cropWidth = (this.state.cropWidth * this.imageScale);
-        const cropHeight = (this.state.cropHeight * this.imageScale);
-
+    
+        // The image scale should be based on the actual rendered canvas size, not the internal canvas size
+        // Recalculate scale based on actual displayed dimensions
+        const actualImageScale = actualCanvasWidth / this.image.width;
+    
+        console.log('Canvas and image positioning:', {
+            canvasRect: { left: canvasRect.left, top: canvasRect.top, width: canvasRect.width, height: canvasRect.height },
+            containerRect: { left: containerRect.left, top: containerRect.top, width: containerRect.width, height: containerRect.height },
+            canvasOffset: { x: canvasOffsetX, y: canvasOffsetY },
+            actualCanvasSize: { width: actualCanvasWidth, height: actualCanvasHeight },
+            internalCanvasSize: { width: this.canvas.width, height: this.canvas.height },
+            storedScale: this.imageScale,
+            actualScale: actualImageScale,
+            imageSize: { width: this.image.width, height: this.image.height }
+        });
+    
+        // Image starts at the canvas position (since canvas = image display size)
+        const imageStartX = canvasOffsetX;
+        const imageStartY = canvasOffsetY;
+    
+        // Calculate crop rectangle in screen coordinates using actual scale
+        const cropLeft = imageStartX + (this.state.cropX * actualImageScale);
+        const cropTop = imageStartY + (this.state.cropY * actualImageScale);
+        const cropWidth = this.state.cropWidth * actualImageScale;
+        const cropHeight = this.state.cropHeight * actualImageScale;
+    
         // Ensure crop overlay stays within the displayed image bounds
-        const maxCropLeft = imageStartX + displayedImageWidth - cropWidth;
-        const maxCropTop = imageStartY + displayedImageHeight - cropHeight;
-
+        const maxCropLeft = imageStartX + actualCanvasWidth - cropWidth;
+        const maxCropTop = imageStartY + actualCanvasHeight - cropHeight;
+    
         const constrainedCropLeft = Math.max(imageStartX, Math.min(cropLeft, maxCropLeft));
         const constrainedCropTop = Math.max(imageStartY, Math.min(cropTop, maxCropTop));
-
-        console.log('Updating crop overlay:', {
-            imageInfo: { width: this.image.width, height: this.image.height },
-            displayedImage: { width: displayedImageWidth, height: displayedImageHeight },
-            imagePosition: { x: imageStartX, y: imageStartY },
+    
+        console.log('Crop overlay positioning:', {
             cropState: { x: this.state.cropX, y: this.state.cropY, w: this.state.cropWidth, h: this.state.cropHeight },
-            imageScale: this.imageScale,
-            originalPosition: { left: cropLeft, top: cropTop },
+            scales: { stored: this.imageScale, actual: actualImageScale },
+            calculatedPosition: { left: cropLeft, top: cropTop, width: cropWidth, height: cropHeight },
             finalPosition: { left: constrainedCropLeft, top: constrainedCropTop, width: cropWidth, height: cropHeight }
         });
-
+    
         // Position the overlay using constrained values with precise pixel alignment
         this.cropOverlay.style.left = `${Math.round(constrainedCropLeft)}px`;
         this.cropOverlay.style.top = `${Math.round(constrainedCropTop)}px`;
         this.cropOverlay.style.width = `${Math.round(cropWidth)}px`;
         this.cropOverlay.style.height = `${Math.round(cropHeight)}px`;
-
+    
         // Ensure overlay is visible
         this.cropOverlay.style.display = 'block';
     }
