@@ -1088,7 +1088,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 1rem; /* uniform padding */
+    padding: 1.5rem; /* uniform padding */
     box-sizing: border-box;
     background: #000000;
     overflow: hidden;
