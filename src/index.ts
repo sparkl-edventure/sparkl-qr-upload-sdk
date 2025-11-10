@@ -13,6 +13,9 @@ export type {
   IQRUploadSDK
 } from './QrUpload';
 
+// Export types from types file
+export type { ImageConfig } from './types';
+
 // Export the QrUpload class
 export { QrUpload };
 
@@ -22,6 +25,13 @@ export {
   generateQrUrl,
   generateSessionId 
 };
+
+// Export PDF utilities
+export { 
+  imagesToPdf, 
+  imageToPdf,
+  type PdfOptions 
+} from './utils/pdf';
 
 
 // Default export for backward compatibility
