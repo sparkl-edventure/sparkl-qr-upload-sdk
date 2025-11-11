@@ -1,6 +1,7 @@
 import type { ImageConfig } from './types';
 import { generateQrCode, generateQrUrl, generateSessionId } from './utils/qr';
 import { QrImageEditor } from './utils/ImageEditor';
+import { MultiScan } from './components/MultiScan';
 import Sortable from "sortablejs";
 import cameraStar from './../assets/img/camera_star.png';
 import cloudUpload from './../assets/img/cloud-upload.svg';
@@ -90,6 +91,7 @@ export class QrUpload implements IQRUploadSDK {
     private pollingInterval: NodeJS.Timeout | null = null;
     private isPolling: boolean = false;
     private nativeCameraInput: HTMLInputElement | null = null;
+    private multiScanInstance: MultiScan | null = null;
 
     private defaultConfig: QrUploadConfig = {
         qrUrl: {
@@ -171,6 +173,19 @@ export class QrUpload implements IQRUploadSDK {
     unmount(): void {
         this.stopCamera();
         this.stopPolling();
+        
+        // Clean up MultiScan if active
+        if (this.multiScanInstance) {
+            this.multiScanInstance.destroy();
+            this.multiScanInstance = null;
+        }
+        
+        // Clean up native camera input if exists
+        if (this.nativeCameraInput) {
+            this.nativeCameraInput.remove();
+            this.nativeCameraInput = null;
+        }
+        
         if (this.container) {
             this.container.innerHTML = '';
             this.container = null;
@@ -1000,6 +1015,12 @@ export class QrUpload implements IQRUploadSDK {
             throw new Error("Container not initialized. Call mount() first.");
         }
 
+        // Check if multi-photo mode is enabled
+        if (this.config.imageConfig?.multiPhoto) {
+            this.renderMultiScanInterface();
+            return;
+        }
+
         // Clear container
         this.container.innerHTML = "";
 
@@ -1159,6 +1180,159 @@ export class QrUpload implements IQRUploadSDK {
             this.nativeCameraInput.click();
         } else {
             throw new Error('Native camera input not initialized. Ensure you have mounted the SDK first.');
+        }
+    }
+
+    /**
+     * Renders multi-scan interface for capturing multiple pages
+     */
+    private renderMultiScanInterface(): void {
+        if (!this.container) {
+            throw new Error("Container not initialized. Call mount() first.");
+        }
+
+        // Create hidden file input for native camera
+        const fileInput = document.createElement("input");
+        fileInput.type = "file";
+        fileInput.accept = (this.config.imageConfig?.allowedMimeTypes || ['image/jpeg', 'image/png', 'image/webp']).join(',');
+        fileInput.setAttribute("capture", "environment");
+        fileInput.style.display = "none";
+        fileInput.id = "qr-upload-multi-scan-input";
+
+        // Store reference
+        this.nativeCameraInput = fileInput;
+
+        // Append to body (needs to be in DOM for camera trigger)
+        document.body.appendChild(fileInput);
+
+        // Create MultiScan instance
+        this.multiScanInstance = new MultiScan({
+            parent: this.container,
+            imageConfig: this.config.imageConfig!,
+            nativeCameraInput: fileInput,
+            logoUrl: this.config.logoUrl,
+            onDone: async (result: File | File[]) => {
+                try {
+                    // Handle upload
+                    if (result instanceof File) {
+                        // Single PDF file
+                        await this.handleMultiScanUpload([result]);
+                    } else {
+                        // Array of image files
+                        await this.handleMultiScanUpload(result);
+                    }
+                } catch (error) {
+                    this.handleError(error instanceof Error ? error : new Error(String(error)));
+                    this.showToast('Upload failed. Please try again.', 'error');
+                }
+            },
+            onCancel: () => {
+                // Clean up MultiScan
+                this.multiScanInstance?.destroy();
+                this.multiScanInstance = null;
+                
+                // Clean up file input
+                if (this.nativeCameraInput) {
+                    this.nativeCameraInput.remove();
+                    this.nativeCameraInput = null;
+                }
+                
+                // Re-render the interface
+                this.renderNativeCameraInterface();
+            }
+        });
+
+        // Handle file input change
+        fileInput.addEventListener('change', (e) => {
+            const target = e.target as HTMLInputElement;
+            const file = target.files?.[0];
+
+            if (!file) return;
+
+            // Validate file type
+            const allowedTypes = this.config.imageConfig?.allowedMimeTypes || ['image/jpeg', 'image/png', 'image/webp'];
+            if (!allowedTypes.includes(file.type)) {
+                this.showToast(`Invalid file type. Allowed: ${allowedTypes.join(', ')}`, "error");
+                return;
+            }
+
+            // Pass file to MultiScan component
+            this.multiScanInstance?.handleImageCapture(file);
+
+            // Reset input so same file can be selected again
+            fileInput.value = '';
+        });
+    }
+
+    /**
+     * Handle upload from MultiScan component
+     */
+    private async handleMultiScanUpload(files: File[]): Promise<void> {
+        if (files.length === 0) {
+            this.showToast('No files to upload', 'error');
+            return;
+        }
+
+        // Show upload loader
+        const loader = this.showUploadLoader();
+        let completedUploads = 0;
+
+        try {
+            const uploadedFiles: File[] = [];
+
+            for (const file of files) {
+                try {
+                    await this.uploadImage(file, (progress) => {
+                        // Calculate overall progress
+                        const fileProgress = progress / files.length;
+                        const overallProgress = (completedUploads / files.length) * 100 + fileProgress;
+                        loader.updateProgress(Math.min(100, Math.round(overallProgress)));
+                    });
+
+                    uploadedFiles.push(file);
+                    completedUploads++;
+
+                    // Update progress after each file
+                    const overallProgress = (completedUploads / files.length) * 100;
+                    loader.updateProgress(Math.round(overallProgress));
+
+                } catch (err) {
+                    console.error('Failed to upload file:', err);
+                    this.handleError(err instanceof Error ? err : new Error(String(err)));
+                }
+            }
+
+            loader.hide();
+
+            if (uploadedFiles.length > 0) {
+                // Call success callback
+                this.config?.uploadApi?.onUploadImageSuccess?.(uploadedFiles);
+
+                const message = files.length === 1
+                    ? (this.config.imageConfig?.pdf?.enabled 
+                        ? 'PDF uploaded successfully!' 
+                        : 'Image uploaded successfully!')
+                    : `${uploadedFiles.length} of ${files.length} files uploaded successfully!`;
+                    
+                this.showToast(message, 'success');
+
+                // Clean up MultiScan
+                this.multiScanInstance?.destroy();
+                this.multiScanInstance = null;
+
+                // Clean up file input
+                if (this.nativeCameraInput) {
+                    this.nativeCameraInput.remove();
+                    this.nativeCameraInput = null;
+                }
+            } else {
+                throw new Error('All uploads failed');
+            }
+
+        } catch (error) {
+            loader.hide();
+            this.handleError(error instanceof Error ? error : new Error(String(error)));
+            this.showToast('Upload failed. Please try again.', 'error');
         }
     }
 
