@@ -8,16 +8,43 @@ export interface PdfOptions {
 }
 
 /**
- * Load an image file and return as HTMLImageElement
+ * Load an image file and convert to data URL
  */
-async function fileToImage(file: File): Promise<HTMLImageElement> {
+async function fileToDataUrl(file: File): Promise<{ dataUrl: string; width: number; height: number }> {
     return new Promise((resolve, reject) => {
         const img = new Image();
         const url = URL.createObjectURL(file);
         
         img.onload = () => {
-            URL.revokeObjectURL(url);
-            resolve(img);
+            try {
+                // Create canvas to convert image to data URL
+                const canvas = document.createElement('canvas');
+                canvas.width = img.naturalWidth;
+                canvas.height = img.naturalHeight;
+                
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                    URL.revokeObjectURL(url);
+                    reject(new Error('Failed to get canvas context'));
+                    return;
+                }
+                
+                // Draw image to canvas
+                ctx.drawImage(img, 0, 0);
+                
+                // Convert to data URL
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+                
+                URL.revokeObjectURL(url);
+                resolve({
+                    dataUrl,
+                    width: img.naturalWidth,
+                    height: img.naturalHeight
+                });
+            } catch (error) {
+                URL.revokeObjectURL(url);
+                reject(error);
+            }
         };
         
         img.onerror = () => {
@@ -97,12 +124,12 @@ export async function imagesToPdf(
     // Process each image
     for (let i = 0; i < files.length; i++) {
         try {
-            const img = await fileToImage(files[i]);
+            const { dataUrl, width: imgWidth, height: imgHeight } = await fileToDataUrl(files[i]);
             
             // Calculate dimensions to fit on page
             const { width, height, x, y } = calculateFitDimensions(
-                img.width,
-                img.height,
+                imgWidth,
+                imgHeight,
                 pageWidth,
                 pageHeight
             );
@@ -112,11 +139,8 @@ export async function imagesToPdf(
                 pdf.addPage();
             }
             
-            // Determine image format
-            const format = files[i].type.includes('png') ? 'PNG' : 'JPEG';
-            
-            // Add image to PDF
-            pdf.addImage(img, format, x, y, width, height, undefined, 'FAST');
+            // Add image to PDF using data URL
+            pdf.addImage(dataUrl, 'JPEG', x, y, width, height, undefined, 'FAST');
             
         } catch (error) {
             console.error(`Failed to add image ${i + 1} to PDF:`, error);

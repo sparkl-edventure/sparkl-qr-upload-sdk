@@ -50,8 +50,28 @@ export class MultiScan {
         // Top app bar
         const appBar = this.createAppBar();
         
-        // Main preview area
+        // Main preview area (with crop overlay inside)
         const previewArea = this.createPreviewArea();
+        
+        // Add crop overlay to preview area
+        const cropOverlay = document.createElement('div');
+        cropOverlay.className = 'qr-upload__ms-crop-overlay';
+        cropOverlay.id = 'qr-upload-ms-crop-overlay';
+        cropOverlay.style.display = 'none';
+        cropOverlay.innerHTML = `
+            <!-- Corner handles -->
+            <div class="qr-upload__ms-crop-handle qr-upload__ms-crop-handle-nw" data-handle="nw"></div>
+            <div class="qr-upload__ms-crop-handle qr-upload__ms-crop-handle-ne" data-handle="ne"></div>
+            <div class="qr-upload__ms-crop-handle qr-upload__ms-crop-handle-sw" data-handle="sw"></div>
+            <div class="qr-upload__ms-crop-handle qr-upload__ms-crop-handle-se" data-handle="se"></div>
+            <!-- Edge handles -->
+            <div class="qr-upload__ms-crop-handle qr-upload__ms-crop-handle-n" data-handle="n"></div>
+            <div class="qr-upload__ms-crop-handle qr-upload__ms-crop-handle-s" data-handle="s"></div>
+            <div class="qr-upload__ms-crop-handle qr-upload__ms-crop-handle-e" data-handle="e"></div>
+            <div class="qr-upload__ms-crop-handle qr-upload__ms-crop-handle-w" data-handle="w"></div>
+        `;
+        const imageContainer = previewArea.querySelector('#qr-upload-ms-image-container');
+        imageContainer?.appendChild(cropOverlay);
         
         // Bottom toolbar with thumbnails
         const toolbar = this.createToolbar();
@@ -134,69 +154,48 @@ export class MultiScan {
                 <circle cx="8.5" cy="8.5" r="1.5"></circle>
                 <polyline points="21 15 16 10 5 21"></polyline>
             </svg>
-            <p>Tap the + button below to start scanning</p>
+            <p>Tap the + button to start scanning</p>
         `;
+
+        // Add page FAB (Floating Action Button) - positioned top right
+        const addPageFab = document.createElement('button');
+        addPageFab.className = 'qr-upload__ms-fab';
+        addPageFab.innerHTML = `
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+        `;
+        addPageFab.addEventListener('click', () => this.addPage());
 
         imageContainer.appendChild(previewImg);
         imageContainer.appendChild(cropOverlay);
         
         previewArea.appendChild(emptyState);
         previewArea.appendChild(imageContainer);
+        previewArea.appendChild(addPageFab);
 
         return previewArea;
     }
+
 
     private createToolbar(): HTMLElement {
         const toolbar = document.createElement('div');
         toolbar.className = 'qr-upload__ms-toolbar';
         toolbar.id = 'qr-upload-ms-toolbar';
 
-        // Edit mode container (hidden by default)
-        const editContainer = document.createElement('div');
-        editContainer.className = 'qr-upload__ms-edit-container';
-        editContainer.id = 'qr-upload-ms-edit-container';
-        editContainer.style.display = 'none';
-        editContainer.innerHTML = `
-            <div class="qr-upload__ms-edit-controls">
-                <button class="qr-upload__ms-edit-cancel">Cancel</button>
-                <span class="qr-upload__ms-edit-title">Edit</span>
-                <button class="qr-upload__ms-edit-apply">Apply</button>
-            </div>
-            <div class="qr-upload__ms-edit-actions">
-                <div class="qr-upload__ms-crop-controls" style="display:none;">
-                    <p class="qr-upload__ms-edit-hint">Drag handles to adjust crop area</p>
-                </div>
-                <div class="qr-upload__ms-rotate-controls" style="display:none;">
-                    <button class="qr-upload__ms-rotate-btn" data-angle="-90">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <polyline points="1 4 1 10 7 10"></polyline>
-                            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
-                        </svg>
-                        <span>Rotate Left</span>
-                    </button>
-                    <button class="qr-upload__ms-rotate-btn" data-angle="90">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <polyline points="23 4 23 10 17 10"></polyline>
-                            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
-                        </svg>
-                        <span>Rotate Right</span>
-                    </button>
-                </div>
-            </div>
-        `;
-
-        // Thumbnail container
+        // Thumbnail container at the top
         const thumbnailContainer = document.createElement('div');
         thumbnailContainer.className = 'qr-upload__ms-thumbnails';
         thumbnailContainer.id = 'qr-upload-ms-thumbnails';
 
-        // Action buttons container
+        // Action buttons container (Crop, Rotate, Delete)
         const actions = document.createElement('div');
         actions.className = 'qr-upload__ms-actions';
 
         // Crop button
         const cropBtn = this.createActionButton('Crop', `
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M6.13 1L6 16a2 2 0 0 0 2 2h15"></path>
                 <path d="M1 6.13L16 6a2 2 0 0 1 2 2v15"></path>
             </svg>
@@ -204,7 +203,7 @@ export class MultiScan {
 
         // Rotate button
         const rotateBtn = this.createActionButton('Rotate', `
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="23 4 23 10 17 10"></polyline>
                 <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
             </svg>
@@ -212,7 +211,7 @@ export class MultiScan {
 
         // Delete button
         const deleteBtn = this.createActionButton('Delete', `
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="3 6 5 6 21 6"></polyline>
                 <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
             </svg>
@@ -222,28 +221,20 @@ export class MultiScan {
         actions.appendChild(rotateBtn);
         actions.appendChild(deleteBtn);
 
-        // Add page FAB (Floating Action Button)
-        const addPageFab = document.createElement('button');
-        addPageFab.className = 'qr-upload__ms-fab';
-        addPageFab.innerHTML = `
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-            </svg>
-        `;
-        addPageFab.addEventListener('click', () => this.addPage());
-
-        // Next button
+        // Next button (large yellow button)
         const nextBtn = document.createElement('button');
         nextBtn.className = 'qr-upload__ms-next-btn';
-        nextBtn.textContent = 'Next';
+        nextBtn.textContent = 'Generate PDF';
         nextBtn.addEventListener('click', () => this.handleDone());
 
-        toolbar.appendChild(editContainer);
+        // Home indicator bar at bottom
+        const homeIndicator = document.createElement('div');
+        homeIndicator.className = 'qr-upload__ms-home-indicator';
+
         toolbar.appendChild(thumbnailContainer);
         toolbar.appendChild(actions);
-        toolbar.appendChild(addPageFab);
         toolbar.appendChild(nextBtn);
+        toolbar.appendChild(homeIndicator);
 
         return toolbar;
     }
@@ -402,35 +393,45 @@ export class MultiScan {
         
         this.editMode = 'crop';
         
-        // Get current image and initialize crop state (matching ImageEditor's openEditor)
+        // Get preview image and initialize crop state (matching ImageEditor's openEditor)
         const previewImg = this.container?.querySelector('#qr-upload-ms-preview-img') as HTMLImageElement;
         
-        if (previewImg && previewImg.naturalWidth && previewImg.naturalHeight) {
-            this.currentImage = previewImg;
-            
-            // Initialize crop to full image dimensions (matching ImageEditor)
-            this.cropState = {
-                x: 0,
-                y: 0,
-                width: previewImg.naturalWidth,
-                height: previewImg.naturalHeight
-            };
+        // Wait for image to load
+        const initCrop = () => {
+            if (previewImg && previewImg.naturalWidth && previewImg.naturalHeight) {
+                this.currentImage = previewImg;
+                
+                // Initialize crop to full image dimensions (matching ImageEditor)
+                this.cropState = {
+                    x: 0,
+                    y: 0,
+                    width: previewImg.naturalWidth,
+                    height: previewImg.naturalHeight
+                };
+                
+                // Get crop overlay reference (matching ImageEditor's setupCropHandlers)
+                this.cropOverlay = this.container?.querySelector('#qr-upload-ms-crop-overlay') as HTMLElement;
+                if (this.cropOverlay) {
+                    this.cropOverlay.style.display = 'block';
+                }
+                
+                this.setupCropHandlers();
+                
+                // Update overlay position after a short delay (matching ImageEditor's setTimeout pattern)
+                setTimeout(() => {
+                    this.updateCropOverlay();
+                }, 100);
+            }
+        };
+        
+        if (previewImg.complete && previewImg.naturalWidth) {
+            initCrop();
+        } else {
+            previewImg.onload = initCrop;
         }
         
-        this.showEditOverlay('crop');
-        
-        // Get crop overlay reference (matching ImageEditor's setupCropHandlers)
-        this.cropOverlay = this.container?.querySelector('#qr-upload-ms-crop-overlay') as HTMLElement;
-        if (this.cropOverlay) {
-            this.cropOverlay.style.display = 'block';
-        }
-        
-        this.setupCropHandlers();
-        
-        // Update overlay position after a short delay (matching ImageEditor's setTimeout pattern)
-        setTimeout(() => {
-            this.updateCropOverlay();
-        }, 100);
+        // Show crop edit toolbar
+        this.showEditToolbar('crop');
     }
 
     private rotateImage(): void {
@@ -438,78 +439,189 @@ export class MultiScan {
         
         this.editMode = 'rotate';
         this.rotation = 0;
-        this.showEditOverlay('rotate');
+        
+        // Show rotate edit toolbar
+        this.showEditToolbar('rotate');
     }
 
-    private showEditOverlay(mode: 'crop' | 'rotate'): void {
+    private showEditToolbar(mode: 'crop' | 'rotate'): void {
         const toolbar = this.container?.querySelector('#qr-upload-ms-toolbar') as HTMLElement;
-        const editContainer = this.container?.querySelector('#qr-upload-ms-edit-container') as HTMLElement;
-        const editTitle = editContainer?.querySelector('.qr-upload__ms-edit-title') as HTMLElement;
-        const cropControls = editContainer?.querySelector('.qr-upload__ms-crop-controls') as HTMLElement;
-        const rotateControls = editContainer?.querySelector('.qr-upload__ms-rotate-controls') as HTMLElement;
-        const cropOverlay = this.container?.querySelector('#qr-upload-ms-crop-overlay') as HTMLElement;
+        if (!toolbar) return;
+
+        // Clear toolbar content
+        toolbar.innerHTML = '';
+
+        if (mode === 'rotate') {
+            // Create rotate controls
+            const rotateControls = document.createElement('div');
+            rotateControls.className = 'qr-upload__ms-edit-controls';
+            rotateControls.innerHTML = `
+                <div class="qr-upload__ms-edit-rotate-controls-container">
+                <div class="qr-upload__ms-edit-rotate-controls-container-buttons">
+                <button class=" qr-upload__ms-cancel-btn">
+                    <span>Cancel</span>
+                </button>
+                 <span> Rotate </span>
+                 <button class=" qr-upload__ms-rotate-apply-btn">
+                     <span>Apply</span>
+                 </button>
+                </div>
+                <div class="qr-upload__ms-edit-rotate-controls-container-buttons">
+                <button class="qr-upload__ms-rotate-left-btn">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="1 4 1 10 7 10"></polyline>
+                        <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+                    </svg>
+                    <span>Left</span>
+                </button>
+                <button class="qr-upload__ms-rotate-right-btn">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="23 4 23 10 17 10"></polyline>
+                        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                    </svg>
+                    <span>Right</span>
+                </button>
+                </div>
+                </div>
+            `;
+
+            toolbar.appendChild(rotateControls);
+
+            // Setup event listeners
+            const rotateLeftBtn = toolbar.querySelector('.qr-upload__ms-rotate-left-btn');
+            const rotateRightBtn = toolbar.querySelector('.qr-upload__ms-rotate-right-btn');
+            const applyBtn = toolbar.querySelector('.qr-upload__ms-rotate-apply-btn');
+            const cancelBtn = toolbar.querySelector('.qr-upload__ms-cancel-btn');
+
+            rotateLeftBtn?.addEventListener('click', () => this.handleRotate(-90));
+            rotateRightBtn?.addEventListener('click', () => this.handleRotate(90));
+            applyBtn?.addEventListener('click', () => this.applyRotation());
+            cancelBtn?.addEventListener('click', () => this.cancelEdit());
+
+        } else if (mode === 'crop') {
+            // Create crop controls
+            const cropControls = document.createElement('div');
+            cropControls.className = 'qr-upload__ms-edit-controls';
+            cropControls.innerHTML = `
+            <div class="qr-upload__ms-edit-crop-controls-container">
+            <div class="qr-upload__ms-edit-crop-controls">
+                <button class="qr-upload__ms-reset-btn">
+                    <span>Cancel</span>
+                </button>
+                <span> Crop </span>
+                <button class="qr-upload__ms-save-btn">
+                   
+                    <span>Save</span>
+                </button>
+            </div>
+            <span class="qr-upload__ms-edit-crop-controls-text"> Drag handles to adjust crop area </span>
+            </div>
+            `;
+
+            toolbar.appendChild(cropControls);
+
+            // Setup event listeners
+            const resetBtn = toolbar.querySelector('.qr-upload__ms-reset-btn');
+            const saveBtn = toolbar.querySelector('.qr-upload__ms-save-btn');
+
+            resetBtn?.addEventListener('click', () => this.cancelEdit());
+            saveBtn?.addEventListener('click', () => this.saveCrop());
+        }
+    }
+
+    private handleRotate(angle: number): void {
+        this.rotation = (this.rotation + angle) % 360;
+        if (this.rotation < 0) this.rotation += 360;
+        
         const previewImg = this.container?.querySelector('#qr-upload-ms-preview-img') as HTMLImageElement;
-
-        if (!toolbar || !editContainer || !editTitle) return;
-
-        // Set title
-        editTitle.textContent = mode === 'crop' ? 'Crop' : 'Rotate';
-
-        // Show/hide controls based on mode
-        if (cropControls) {
-            cropControls.style.display = mode === 'crop' ? 'block' : 'none';
+        if (previewImg) {
+            previewImg.style.transform = `rotate(${this.rotation}deg)`;
+            previewImg.style.transition = 'transform 0.3s ease';
         }
-        if (rotateControls) {
-            rotateControls.style.display = mode === 'rotate' ? 'flex' : 'none';
+    }
+
+    private cancelEdit(): void {
+        // Reset rotation/crop state
+        this.rotation = 0;
+        const previewImg = this.container?.querySelector('#qr-upload-ms-preview-img') as HTMLImageElement;
+        if (previewImg) {
+            previewImg.style.transform = '';
         }
+        
+        // Hide crop overlay if visible
+        const cropOverlay = this.container?.querySelector('#qr-upload-ms-crop-overlay') as HTMLElement;
         if (cropOverlay) {
-            cropOverlay.style.display = mode === 'crop' ? 'block' : 'none';
+            cropOverlay.style.display = 'none';
         }
-
-        // Enter edit mode
-        toolbar.classList.add('edit-mode');
-        editContainer.style.display = 'block';
-
-        // Setup event listeners
-        this.setupEditEventListeners(editContainer, previewImg!);
+        
+        this.editMode = 'none';
+        this.restoreToolbar();
     }
 
-    private setupEditEventListeners(editOverlay: HTMLElement, previewImg: HTMLImageElement): void {
-        // Cancel button
-        const cancelBtn = editOverlay.querySelector('.qr-upload__ms-edit-cancel');
-        cancelBtn?.addEventListener('click', () => this.cancelEdit());
-
-        // Apply button
-        const applyBtn = editOverlay.querySelector('.qr-upload__ms-edit-apply');
-        applyBtn?.addEventListener('click', () => this.applyEdit());
-
-        // Rotate buttons
-        const rotateBtns = editOverlay.querySelectorAll('.qr-upload__ms-rotate-btn');
-        rotateBtns.forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const angle = parseInt((e.currentTarget as HTMLElement).dataset.angle || '0');
-                this.rotation = (this.rotation + angle) % 360;
-                if (this.rotation < 0) this.rotation += 360;
-                this.applyRotationPreview(previewImg);
-            });
-        });
+    private saveCrop(): void {
+        this.applyCrop();
     }
 
-    private applyRotationPreview(previewImg: HTMLImageElement): void {
-        previewImg.style.transform = `rotate(${this.rotation}deg)`;
-        previewImg.style.transition = 'transform 0.3s ease';
+    private restoreToolbar(): void {
+        const toolbar = this.container?.querySelector('#qr-upload-ms-toolbar') as HTMLElement;
+        if (!toolbar) return;
+
+        // Clear and rebuild toolbar
+        toolbar.innerHTML = '';
+
+        // Thumbnail container
+        const thumbnailContainer = document.createElement('div');
+        thumbnailContainer.className = 'qr-upload__ms-thumbnails';
+        thumbnailContainer.id = 'qr-upload-ms-thumbnails';
+
+        // Action buttons
+        const actions = document.createElement('div');
+        actions.className = 'qr-upload__ms-actions';
+
+        const cropBtn = this.createActionButton('Crop', `
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M6.13 1L6 16a2 2 0 0 0 2 2h15"></path>
+                <path d="M1 6.13L16 6a2 2 0 0 1 2 2v15"></path>
+            </svg>
+        `, () => this.cropImage());
+
+        const rotateBtn = this.createActionButton('Rotate', `
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="23 4 23 10 17 10"></polyline>
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+            </svg>
+        `, () => this.rotateImage());
+
+        const deleteBtn = this.createActionButton('Delete', `
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+        `, () => this.deleteCurrentPage());
+
+        actions.appendChild(cropBtn);
+        actions.appendChild(rotateBtn);
+        actions.appendChild(deleteBtn);
+
+        // Next button
+        const nextBtn = document.createElement('button');
+        nextBtn.className = 'qr-upload__ms-next-btn';
+        nextBtn.textContent = 'Submit';
+        nextBtn.addEventListener('click', () => this.handleDone());
+
+        // Home indicator
+        const homeIndicator = document.createElement('div');
+        homeIndicator.className = 'qr-upload__ms-home-indicator';
+
+        toolbar.appendChild(thumbnailContainer);
+        toolbar.appendChild(actions);
+        toolbar.appendChild(nextBtn);
+        toolbar.appendChild(homeIndicator);
+
+        // Update thumbnails
+        this.updateUI();
     }
 
-    private async applyEdit(): Promise<void> {
-        if (this.editMode === 'rotate' && this.rotation !== 0) {
-            await this.applyRotation();
-        } else if (this.editMode === 'crop') {
-            await this.applyCrop();
-        }
-
-        this.hideEditOverlay();
-        this.showToast('Image updated', 'success');
-    }
 
     private async applyRotation(): Promise<void> {
         const currentImage = this.images[this.currentImageIndex];
@@ -554,6 +666,15 @@ export class MultiScan {
             currentImage.file = newFile;
             currentImage.previewUrl = URL.createObjectURL(newFile);
 
+            // Reset rotation state and UI
+            this.rotation = 0;
+            const previewImg = this.container?.querySelector('#qr-upload-ms-preview-img') as HTMLImageElement;
+            if (previewImg) previewImg.style.transform = '';
+            
+            this.editMode = 'none';
+            this.showToast('Image rotated', 'success');
+            this.restoreToolbar();
+
         } catch (error) {
             console.error('Failed to rotate image:', error);
             this.showToast('Failed to rotate image', 'error');
@@ -579,31 +700,6 @@ export class MultiScan {
         });
     }
 
-    private cancelEdit(): void {
-        // Reset rotation preview
-        const previewImg = this.container?.querySelector('#qr-upload-ms-preview-img') as HTMLImageElement;
-        if (previewImg) {
-            previewImg.style.transform = '';
-        }
-
-        this.hideEditOverlay();
-    }
-
-    private hideEditOverlay(): void {
-        const toolbar = this.container?.querySelector('#qr-upload-ms-toolbar') as HTMLElement;
-        const editContainer = this.container?.querySelector('#qr-upload-ms-edit-container') as HTMLElement;
-        const previewImg = this.container?.querySelector('#qr-upload-ms-preview-img') as HTMLImageElement;
-        const cropOverlay = this.container?.querySelector('#qr-upload-ms-crop-overlay') as HTMLElement;
-
-        if (toolbar) toolbar.classList.remove('edit-mode');
-        if (editContainer) editContainer.style.display = 'none';
-        if (previewImg) previewImg.style.transform = '';
-        if (cropOverlay) cropOverlay.style.display = 'none';
-
-        this.editMode = 'none';
-        this.rotation = 0;
-        this.updateUI();
-    }
 
     // ===== CROP FUNCTIONALITY =====
 
@@ -978,6 +1074,14 @@ export class MultiScan {
 
             console.log('Crop applied successfully');
 
+            // Hide crop overlay and reset state
+            const cropOverlay = this.container?.querySelector('#qr-upload-ms-crop-overlay') as HTMLElement;
+            if (cropOverlay) cropOverlay.style.display = 'none';
+            
+            this.editMode = 'none';
+            this.showToast('Image cropped', 'success');
+            this.restoreToolbar();
+
         } catch (error) {
             console.error('Failed to crop image:', error);
             this.showToast('Failed to crop image', 'error');
@@ -1017,29 +1121,23 @@ export class MultiScan {
         }
 
         try {
-            const pdfConfig = this.config.imageConfig.pdf;
+            // Show loader
+            this.showLoader('Generating PDF...');
             
-            if (pdfConfig?.enabled) {
-                // Show loader
-                this.showLoader('Generating PDF...');
-                
-                // Convert to PDF
-                const pdfFile = await imagesToPdf(
-                    this.images.map(img => img.file),
-                    {
-                        pageSize: pdfConfig.pageSize || 'a4',
-                        orientation: pdfConfig.orientation || 'portrait',
-                        fileName: pdfConfig.fileName || `scan-${Date.now()}.pdf`,
-                        quality: pdfConfig.quality || 0.85
-                    }
-                );
+            // Always convert to PDF
+            const pdfConfig = this.config.imageConfig.pdf;
+            const pdfFile = await imagesToPdf(
+                this.images.map(img => img.file),
+                {
+                    pageSize: pdfConfig?.pageSize || 'a4',
+                    orientation: pdfConfig?.orientation || 'portrait',
+                    fileName: pdfConfig?.fileName || `scan-${Date.now()}.pdf`,
+                    quality: pdfConfig?.quality || 0.85
+                }
+            );
 
-                this.hideLoader();
-                this.config.onDone(pdfFile);
-            } else {
-                // Return array of files
-                this.config.onDone(this.images.map(img => img.file));
-            }
+            this.hideLoader();
+            this.config.onDone(pdfFile);
 
             // Cleanup
             this.cleanup();
@@ -1047,7 +1145,7 @@ export class MultiScan {
             this.hideLoader();
             console.error('Failed to process images:', error);
             this.showToast(
-                error instanceof Error ? error.message : 'Failed to process images',
+                error instanceof Error ? error.message : 'Failed to generate PDF',
                 'error'
             );
         }
