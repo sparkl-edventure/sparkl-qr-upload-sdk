@@ -224,7 +224,7 @@ export class MultiScan {
         // Next button (large yellow button)
         const nextBtn = document.createElement('button');
         nextBtn.className = 'qr-upload__ms-next-btn';
-        nextBtn.textContent = 'Generate PDF';
+        nextBtn.textContent = 'Submit';
         nextBtn.addEventListener('click', () => this.handleDone());
 
         // Home indicator bar at bottom
