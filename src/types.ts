@@ -14,6 +14,13 @@ export interface ImageConfig {
   maxImages?: number;
   allowedMimeTypes?: string[];
   fileName?: string;
+  pdf?: {
+    enabled: boolean;           // Generate PDF instead of array
+    pageSize?: 'a4' | 'letter' | 'legal';
+    orientation?: 'portrait' | 'landscape';
+    fileName?: string;          // PDF filename
+    quality?: number;           // 0.1 to 1
+  };
 } 
 
 
